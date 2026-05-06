@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MU 用户管理</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="loginView" class="login-layout">
+        <div class="brand-block">
+          <div class="mark">MU</div>
+          <h1>用户管理</h1>
+          <p>管理员工作台</p>
+        </div>
+        <form id="loginForm" class="login-form">
+          <label>
+            账号
+            <input name="username" autocomplete="username" required />
+          </label>
+          <label>
+            密码
+            <input name="password" type="password" autocomplete="current-password" required />
+          </label>
+          <button type="submit" class="primary-button">
+            <i data-lucide="log-in"></i>
+            登录
+          </button>
+          <p id="loginError" class="error-text" role="alert"></p>
+        </form>
+      </section>
+
+      <section id="adminView" class="admin-layout hidden">
+        <header class="topbar">
+          <div>
+            <h1>用户管理</h1>
+            <p id="adminName"></p>
+          </div>
+          <button id="logoutButton" class="icon-button" title="退出登录" aria-label="退出登录">
+            <i data-lucide="log-out"></i>
+          </button>
+        </header>
+
+        <section class="toolbar">
+          <form id="filterForm" class="filters">
+            <label>
+              用户名
+              <input name="username" placeholder="搜索用户名" />
+            </label>
+            <label>
+              邮箱
+              <input name="email" placeholder="搜索邮箱" />
+            </label>
+            <label>
+              组织
+              <input name="organization_name" placeholder="搜索组织" />
+            </label>
+            <label>
+              权限
+              <select name="permissions">
+                <option value="">全部</option>
+                <option value="common">common</option>
+                <option value="research">research</option>
+                <option value="explorer">explorer</option>
+                <option value="team">team</option>
+                <option value="premium">premium</option>
+                <option value="enterprise">enterprise</option>
+                <option value="joint">joint</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            <button type="submit" class="tool-button" title="搜索">
+              <i data-lucide="search"></i>
+              搜索
+            </button>
+          </form>
+          <button id="createButton" class="primary-button">
+            <i data-lucide="user-plus"></i>
+            新增用户
+          </button>
+        </section>
+
+        <section class="table-surface">
+          <div class="table-meta">
+            <span id="resultSummary">0 个用户</span>
+            <div class="pager">
+              <button id="prevPage" class="icon-button" title="上一页" aria-label="上一页">
+                <i data-lucide="chevron-left"></i>
+              </button>
+              <span id="pageInfo">1 / 1</span>
+              <button id="nextPage" class="icon-button" title="下一页" aria-label="下一页">
+                <i data-lucide="chevron-right"></i>
+              </button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>用户名</th>
+                  <th>邮箱</th>
+                  <th>组织</th>
+                  <th>权限</th>
+                  <th>额度</th>
+                  <th>订阅截止</th>
+                  <th>更新于</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="userTableBody"></tbody>
+            </table>
+          </div>
+          <div id="emptyState" class="empty-state hidden">暂无用户</div>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="userDialog">
+      <form id="userForm" method="dialog" class="dialog-form">
+        <header>
+          <h2 id="dialogTitle">新增用户</h2>
+          <button type="button" id="closeDialog" class="icon-button" title="关闭" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <input type="hidden" name="id" />
+        <div class="form-grid">
+          <label>
+            用户名
+            <input name="username" required />
+          </label>
+          <label>
+            邮箱
+            <input name="email" required />
+          </label>
+          <label>
+            密码
+            <input name="password" type="password" minlength="6" autocomplete="new-password" />
+          </label>
+          <label>
+            权限
+            <select name="permissions">
+              <option value="common">common</option>
+              <option value="research">research</option>
+              <option value="explorer">explorer</option>
+              <option value="team">team</option>
+              <option value="premium">premium</option>
+              <option value="enterprise">enterprise</option>
+              <option value="joint">joint</option>
+              <option value="admin">admin</option>
+            </select>
+          </label>
+          <label>
+            新权限
+            <input name="permissions_new" />
+          </label>
+          <label>
+            查询额度
+            <input name="query_limit" type="number" min="0" max="150" />
+          </label>
+          <label>
+            名
+            <input name="first_name" />
+          </label>
+          <label>
+            姓
+            <input name="last_name" />
+          </label>
+          <label>
+            组织
+            <input name="organization_name" />
+          </label>
+          <label>
+            教育邮箱
+            <input name="edu_email" />
+          </label>
+          <label>
+            Teams 邮箱
+            <input name="teams_email_reg" />
+          </label>
+          <label>
+            订阅开始
+            <input name="subscribe_start_at" type="datetime-local" />
+          </label>
+          <label>
+            订阅结束
+            <input name="subscribe_end_at" type="datetime-local" />
+          </label>
+        </div>
+        <p id="formError" class="error-text" role="alert"></p>
+        <footer>
+          <button type="button" id="cancelDialog" class="tool-button">取消</button>
+          <button type="submit" class="primary-button">
+            <i data-lucide="save"></i>
+            保存
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast hidden"></div>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

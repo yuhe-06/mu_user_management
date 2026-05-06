@@ -112,7 +112,12 @@ function cleanPayload(formData, mode) {
   const payload = {};
   for (const [key, value] of formData.entries()) {
     if (key === "id") continue;
-    if (value === "") continue;
+    if (value === "") {
+      if (mode === "edit" && key === "organization_name") {
+        payload[key] = null;
+      }
+      continue;
+    }
     payload[key] = value;
   }
   if (mode === "create" && !payload.password) {

@@ -110,33 +110,10 @@ function fromDateTimeLocal(value) {
 
 function cleanPayload(formData, mode) {
   const payload = {};
-  const nullableFields = new Set([
-    "edu_email",
-    "first_name",
-    "last_name",
-    "organization_name",
-    "permissions_new",
-    "teams_email_reg",
-    "subscribe_start_at",
-    "subscribe_end_at",
-  ]);
   for (const [key, value] of formData.entries()) {
     if (key === "id") continue;
-    if (value === "") {
-      if (mode === "edit" && nullableFields.has(key)) {
-        payload[key] = null;
-      }
-      continue;
-    }
+    if (value === "") continue;
     payload[key] = value;
-  }
-  if (payload.query_limit !== undefined) {
-    payload.query_limit = Number(payload.query_limit);
-  }
-  for (const key of ["subscribe_start_at", "subscribe_end_at"]) {
-    if (payload[key] !== undefined) {
-      payload[key] = fromDateTimeLocal(payload[key]);
-    }
   }
   if (mode === "create" && !payload.password) {
     throw new Error("新增用户需要填写密码");
@@ -229,7 +206,6 @@ function openDialog(user = null) {
     }
   } else {
     els.userForm.elements.permissions.value = "research";
-    els.userForm.elements.query_limit.value = "100";
   }
 
   els.userDialog.showModal();

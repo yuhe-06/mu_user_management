@@ -23,6 +23,20 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
 
 打开 `http://localhost:8010`，使用已有 admin 账号登录。
 
+## Docker Compose 运行
+
+```bash
+cd mu_user_management
+cp .env.example .env
+docker compose up -d --build
+```
+
+打开 `http://localhost:8010`，使用已有 admin 账号登录。停止服务：
+
+```bash
+docker compose down
+```
+
 ## 环境变量
 
 - `DATABASE_URL`：PostgreSQL 连接串，指向包含 `public.users` 的数据库。

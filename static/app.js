@@ -138,8 +138,7 @@ function renderTable() {
           <td>${escapeHtml(user.email || "-")}</td>
           <td class="cell-muted">${escapeHtml(user.organization_name || "-")}</td>
           <td><span class="badge">${escapeHtml(user.permissions || "-")}</span></td>
-          <td>${user.query_limit ?? "-"}</td>
-          <td>${formatDate(user.subscribe_end_at)}</td>
+          <td>${formatDate(user.created_at)}</td>
           <td>${formatDate(user.updated_at)}</td>
           <td>
             <div class="row-actions">

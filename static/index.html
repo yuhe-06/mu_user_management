@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MU 用户管理</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260521-5" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   </head>
   <body>
@@ -45,71 +45,83 @@
 
         <section class="toolbar">
           <form id="filterForm" class="filters">
-            <label>
-              用户名
-              <input name="username" placeholder="搜索用户名" />
-            </label>
-            <label>
-              邮箱
-              <input name="email" placeholder="搜索邮箱" />
-            </label>
-            <label>
-              组织
-              <input name="organization_name" placeholder="搜索组织" />
-            </label>
-            <label>
-              权限
-              <select name="permissions">
-                <option value="">全部</option>
-                <option value="trial">trial</option>
-                <option value="common">common</option>
-                <option value="research">research</option>
-                <option value="explorer">explorer</option>
-                <option value="team">team</option>
-                <option value="enterprise1">enterprise1</option>
-                <option value="enterprise2">enterprise2</option>
-                <option value="enterprise3">enterprise3</option>
-                <option value="joint">joint</option>
-                <option value="admin">admin</option>
-              </select>
-            </label>
-            <button type="submit" class="tool-button" title="搜索">
-              <i data-lucide="search"></i>
-              搜索
-            </button>
+            <div class="filter-row filter-row-pair">
+              <label>
+                用户名
+                <input name="username" placeholder="搜索用户名" />
+              </label>
+              <label>
+                邮箱
+                <input name="email" placeholder="搜索邮箱" />
+              </label>
+            </div>
+            <div class="filter-row filter-row-pair">
+              <label>
+                组织
+                <input name="organization_name" placeholder="搜索组织" />
+              </label>
+              <label>
+                权限
+                <select name="permissions">
+                  <option value="">全部</option>
+                  <option value="common">common</option>
+                  <option value="trial">trial</option>
+                  <option value="research">research</option>
+                  <option value="explorer">explorer</option>
+                  <option value="team">team</option>
+                  <option value="enterprise1">enterprise1</option>
+                  <option value="enterprise2">enterprise2</option>
+                  <option value="enterprise3">enterprise3</option>
+                  <option value="joint">joint</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+            </div>
+            <div class="filter-row filter-row-actions">
+              <label>
+                关键词
+                <input name="q" placeholder="模糊搜索保留字段" />
+              </label>
+              <div class="filter-actions">
+                <button type="submit" class="tool-button" title="搜索">
+                  <i data-lucide="search"></i>
+                  搜索
+                </button>
+                <button id="createButton" type="button" class="primary-button">
+                  <i data-lucide="user-plus"></i>
+                  新增用户
+                </button>
+              </div>
+            </div>
           </form>
-          <button id="createButton" class="primary-button">
-            <i data-lucide="user-plus"></i>
-            新增用户
-          </button>
         </section>
 
         <section class="table-surface">
           <div class="table-meta">
             <span id="resultSummary">0 个用户</span>
-            <div class="pager">
-              <button id="prevPage" class="icon-button" title="上一页" aria-label="上一页">
-                <i data-lucide="chevron-left"></i>
-              </button>
-              <span id="pageInfo">1 / 1</span>
-              <button id="nextPage" class="icon-button" title="下一页" aria-label="下一页">
-                <i data-lucide="chevron-right"></i>
-              </button>
+            <div class="table-tools">
+              <div class="column-picker">
+                <button id="columnButton" type="button" class="tool-button" title="展示列">
+                  <i data-lucide="columns-3"></i>
+                  展示列
+                </button>
+                <div id="columnMenu" class="column-menu hidden"></div>
+              </div>
+              <div class="pager">
+                <button id="prevPage" class="icon-button" title="上一页" aria-label="上一页">
+                  <i data-lucide="chevron-left"></i>
+                </button>
+                <span id="pageInfo">1 / 1</span>
+                <button id="nextPage" class="icon-button" title="下一页" aria-label="下一页">
+                  <i data-lucide="chevron-right"></i>
+                </button>
+              </div>
             </div>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>用户名</th>
-                  <th>邮箱</th>
-                  <th>组织</th>
-                  <th>权限</th>
-                  <th>创建日期</th>
-                  <th>更新日期</th>
-                  <th>操作</th>
-                </tr>
+                <tr id="userTableHeader"></tr>
               </thead>
               <tbody id="userTableBody"></tbody>
             </table>
@@ -138,6 +150,10 @@
             <input name="email" required />
           </label>
           <label>
+            教育邮箱
+            <input name="edu_email" />
+          </label>
+          <label>
             组织
             <input name="organization_name" />
           </label>
@@ -148,8 +164,8 @@
           <label>
             权限
             <select name="permissions">
-              <option value="trial">trial</option>
               <option value="common">common</option>
+              <option value="trial">trial</option>
               <option value="research">research</option>
               <option value="explorer">explorer</option>
               <option value="team">team</option>
@@ -159,6 +175,34 @@
               <option value="joint">joint</option>
               <option value="admin">admin</option>
             </select>
+          </label>
+          <label>
+            新权限
+            <input name="permissions_new" />
+          </label>
+          <label>
+            Teams 邮箱
+            <input name="teams_email_reg" />
+          </label>
+          <label>
+            订阅开始
+            <input name="subscribe_start_at" type="datetime-local" />
+          </label>
+          <label>
+            订阅结束
+            <input name="subscribe_end_at" type="datetime-local" />
+          </label>
+          <label>
+            创建日期
+            <input name="created_at" type="datetime-local" />
+          </label>
+          <label>
+            更新日期
+            <input name="updated_at" type="datetime-local" />
+          </label>
+          <label class="checkbox-field">
+            <input name="deleted" type="checkbox" />
+            已删除
           </label>
         </div>
         <p id="formError" class="error-text" role="alert"></p>
@@ -173,6 +217,6 @@
     </dialog>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260521-5"></script>
   </body>
 </html>

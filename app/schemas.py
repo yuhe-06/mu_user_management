@@ -46,6 +46,9 @@ class UserUpdate(BaseModel):
     permissions_new: Optional[str] = None
     query_limit: Optional[int] = Field(default=None, ge=0, le=150)
     teams_email_reg: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    deleted: Optional[bool] = None
     subscribe_start_at: Optional[datetime] = None
     subscribe_end_at: Optional[datetime] = None
     password: Optional[str] = Field(default=None, min_length=6, max_length=128)
@@ -76,8 +79,30 @@ class UserRead(BaseModel):
         return value.isoformat() if value else None
 
 
+class UserListItem(BaseModel):
+    id: int
+    username: Optional[str] = None
+    email: Optional[str] = None
+    edu_email: Optional[str] = None
+    organization_name: Optional[str] = None
+    permissions: Optional[str] = None
+    permissions_new: Optional[str] = None
+    teams_email_reg: Optional[str] = None
+    subscribe_start_at: Optional[datetime] = None
+    subscribe_end_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    deleted: Optional[bool] = False
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @field_serializer("created_at", "updated_at", "subscribe_start_at", "subscribe_end_at")
+    def serialize_datetime(self, value: Optional[datetime]) -> Optional[str]:
+        return value.isoformat() if value else None
+
+
 class UserListResponse(BaseModel):
     total: int
     page: int
     page_size: int
-    data: list[UserRead]
+    data: list[UserListItem]

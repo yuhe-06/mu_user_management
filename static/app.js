@@ -17,6 +17,9 @@ const els = {
   filterForm: document.querySelector("#filterForm"),
   createButton: document.querySelector("#createButton"),
   userTableBody: document.querySelector("#userTableBody"),
+  userTableHeader: document.querySelector("#userTableHeader"),
+  columnButton: document.querySelector("#columnButton"),
+  columnMenu: document.querySelector("#columnMenu"),
   resultSummary: document.querySelector("#resultSummary"),
   pageInfo: document.querySelector("#pageInfo"),
   prevPage: document.querySelector("#prevPage"),
@@ -30,6 +33,41 @@ const els = {
   formError: document.querySelector("#formError"),
   toast: document.querySelector("#toast"),
 };
+
+const nullableFields = new Set([
+  "edu_email",
+  "organization_name",
+  "permissions",
+  "permissions_new",
+  "teams_email_reg",
+  "created_at",
+  "updated_at",
+  "subscribe_start_at",
+  "subscribe_end_at",
+]);
+
+const dateTimeFields = new Set(["created_at", "updated_at", "subscribe_start_at", "subscribe_end_at"]);
+const columnStorageKey = "mu_user_management_visible_columns";
+
+const tableColumns = [
+  { key: "id", label: "ID" },
+  { key: "username", label: "用户名" },
+  { key: "email", label: "邮箱" },
+  { key: "edu_email", label: "教育邮箱" },
+  { key: "organization_name", label: "组织" },
+  { key: "permissions", label: "权限", type: "badge" },
+  { key: "permissions_new", label: "新权限" },
+  { key: "teams_email_reg", label: "Teams 邮箱" },
+  { key: "subscribe_start_at", label: "订阅开始", type: "date" },
+  { key: "subscribe_end_at", label: "订阅结束", type: "date" },
+  { key: "created_at", label: "创建日期", type: "date" },
+  { key: "updated_at", label: "更新日期", type: "date" },
+  { key: "deleted", label: "已删除" },
+];
+
+state.sortBy = "updated_at";
+state.sortOrder = "desc";
+state.visibleColumns = loadVisibleColumns();
 
 function iconRefresh() {
   if (window.lucide) {
@@ -112,18 +150,98 @@ function cleanPayload(formData, mode) {
   const payload = {};
   for (const [key, value] of formData.entries()) {
     if (key === "id") continue;
+    if (key === "password" && value === "") continue;
     if (value === "") {
-      if (mode === "edit" && key === "organization_name") {
+      if (mode === "edit" && nullableFields.has(key)) {
         payload[key] = null;
       }
       continue;
     }
-    payload[key] = value;
+    if (dateTimeFields.has(key)) {
+      payload[key] = fromDateTimeLocal(value);
+    } else {
+      payload[key] = value;
+    }
+  }
+  const deletedInput = els.userForm.elements.deleted;
+  if (deletedInput) {
+    payload.deleted = deletedInput.checked;
   }
   if (mode === "create" && !payload.password) {
     throw new Error("新增用户需要填写密码");
   }
   return payload;
+}
+
+function displayValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "boolean") return value ? "是" : "否";
+  return escapeHtml(value);
+}
+
+function displayDate(value) {
+  return escapeHtml(formatDate(value));
+}
+
+function loadVisibleColumns() {
+  const allKeys = tableColumns.map((column) => column.key);
+  try {
+    const saved = JSON.parse(localStorage.getItem(columnStorageKey) || "[]");
+    const visible = saved.filter((key) => allKeys.includes(key));
+    return visible.length ? visible : allKeys;
+  } catch {
+    return allKeys;
+  }
+}
+
+function getVisibleColumns() {
+  const visible = new Set(state.visibleColumns);
+  return tableColumns.filter((column) => visible.has(column.key));
+}
+
+function renderCell(user, column) {
+  if (column.type === "date") {
+    return displayDate(user[column.key]);
+  }
+  if (column.type === "badge") {
+    return `<span class="badge">${displayValue(user[column.key])}</span>`;
+  }
+  return displayValue(user[column.key]);
+}
+
+function renderTableHeader() {
+  els.userTableHeader.innerHTML = `
+    ${getVisibleColumns()
+      .map((column) => {
+        const active = state.sortBy === column.key;
+        const icon = active ? (state.sortOrder === "asc" ? "arrow-up" : "arrow-down") : "chevrons-up-down";
+        return `
+          <th>
+            <button class="sort-button ${active ? "active" : ""}" type="button" data-sort-key="${column.key}">
+              <span>${escapeHtml(column.label)}</span>
+              <i data-lucide="${icon}"></i>
+            </button>
+          </th>
+        `;
+      })
+      .join("")}
+    <th>操作</th>
+  `;
+  iconRefresh();
+}
+
+function renderColumnMenu() {
+  const visible = new Set(state.visibleColumns);
+  els.columnMenu.innerHTML = tableColumns
+    .map(
+      (column) => `
+        <label class="column-option">
+          <input type="checkbox" value="${column.key}" ${visible.has(column.key) ? "checked" : ""} />
+          ${escapeHtml(column.label)}
+        </label>
+      `
+    )
+    .join("");
 }
 
 function renderTable() {
@@ -138,13 +256,7 @@ function renderTable() {
     .map(
       (user) => `
         <tr>
-          <td>${user.id}</td>
-          <td>${escapeHtml(user.username || "-")}</td>
-          <td>${escapeHtml(user.email || "-")}</td>
-          <td class="cell-muted">${escapeHtml(user.organization_name || "-")}</td>
-          <td><span class="badge">${escapeHtml(user.permissions || "-")}</span></td>
-          <td>${formatDate(user.created_at)}</td>
-          <td>${formatDate(user.updated_at)}</td>
+          ${getVisibleColumns().map((column) => `<td>${renderCell(user, column)}</td>`).join("")}
           <td>
             <div class="row-actions">
               <button class="icon-button" title="编辑" aria-label="编辑" data-action="edit" data-id="${user.id}">
@@ -175,6 +287,8 @@ async function loadUsers() {
   const params = new URLSearchParams({
     page: String(state.page),
     page_size: String(state.pageSize),
+    sort_by: state.sortBy,
+    sort_order: state.sortOrder,
   });
   for (const [key, value] of Object.entries(state.filters)) {
     if (value) params.set(key, value);
@@ -184,6 +298,7 @@ async function loadUsers() {
   });
   state.total = data.total;
   state.users = data.data;
+  renderTableHeader();
   renderTable();
 }
 
@@ -204,12 +319,15 @@ function openDialog(user = null) {
       if (!input) continue;
       if (input.type === "datetime-local") {
         input.value = toDateTimeLocal(value);
+      } else if (input.type === "checkbox") {
+        input.checked = Boolean(value);
       } else if (value !== null && value !== undefined) {
         input.value = value;
       }
     }
   } else {
     els.userForm.elements.permissions.value = "research";
+    els.userForm.elements.deleted.checked = false;
   }
 
   els.userDialog.showModal();
@@ -259,6 +377,8 @@ async function deleteUser(id) {
 }
 
 async function bootstrap() {
+  renderTableHeader();
+  renderColumnMenu();
   iconRefresh();
   if (!state.token) {
     showLogin();
@@ -309,6 +429,44 @@ els.createButton.addEventListener("click", () => openDialog());
 els.closeDialog.addEventListener("click", () => els.userDialog.close());
 els.cancelDialog.addEventListener("click", () => els.userDialog.close());
 els.userForm.addEventListener("submit", submitUserForm);
+
+els.userTableHeader.addEventListener("click", async (event) => {
+  const button = event.target.closest("button[data-sort-key]");
+  if (!button) return;
+  const sortKey = button.dataset.sortKey;
+  if (state.sortBy === sortKey) {
+    state.sortOrder = state.sortOrder === "asc" ? "desc" : "asc";
+  } else {
+    state.sortBy = sortKey;
+    state.sortOrder = "asc";
+  }
+  state.page = 1;
+  await loadUsers();
+});
+
+els.columnButton.addEventListener("click", () => {
+  els.columnMenu.classList.toggle("hidden");
+});
+
+els.columnMenu.addEventListener("change", (event) => {
+  if (event.target.type !== "checkbox") return;
+  const checked = Array.from(els.columnMenu.querySelectorAll("input:checked")).map((input) => input.value);
+  if (!checked.length) {
+    event.target.checked = true;
+    showToast("至少保留一列");
+    return;
+  }
+  state.visibleColumns = checked;
+  localStorage.setItem(columnStorageKey, JSON.stringify(state.visibleColumns));
+  renderTableHeader();
+  renderTable();
+});
+
+document.addEventListener("click", (event) => {
+  if (els.columnMenu.classList.contains("hidden")) return;
+  if (event.target.closest(".column-picker")) return;
+  els.columnMenu.classList.add("hidden");
+});
 
 els.prevPage.addEventListener("click", async () => {
   if (state.page <= 1) return;

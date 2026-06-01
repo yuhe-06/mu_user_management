@@ -492,7 +492,7 @@ async function previewBatchUsers(event) {
       headers: authHeaders(),
       body: JSON.stringify({
         emails: formData.get("emails"),
-        organization_name: formData.get("organization_name"),
+        organization_name: String(formData.get("organization_name") || "").trim() || null,
         permissions: formData.get("permissions"),
         subscribe_start_at: fromDateTimeLocal(formData.get("subscribe_start_at")),
         subscribe_end_at: fromDateTimeLocal(formData.get("subscribe_end_at")),

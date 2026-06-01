@@ -59,7 +59,7 @@ def _ensure_unique(db: Session, username: Optional[str], email: Optional[str], c
 def _parse_batch_emails(raw: str) -> list[str]:
     emails = []
     seen = set()
-    for part in raw.replace("\n", ",").replace(";", ",").split(","):
+    for part in raw.replace("\n", ",").replace(";", ",").replace("，", ",").split(","):
         email = part.strip()
         if not email:
             continue
@@ -78,6 +78,20 @@ def _username_from_email(email: str) -> str:
     if not username:
         raise ValueError("Invalid email")
     return username
+
+
+def _organization_from_email(email: str) -> str:
+    if "@" not in email:
+        raise ValueError("Invalid email")
+    domain = email.split("@", 1)[1].strip().lower()
+    if not domain:
+        raise ValueError("Invalid email")
+    return domain
+
+
+def _batch_organization(email: str, organization_name: Optional[str]) -> str:
+    organization = organization_name.strip() if organization_name else ""
+    return organization or _organization_from_email(email)
 
 
 @router.get("", response_model=UserListResponse)
@@ -194,7 +208,7 @@ def preview_batch_users(payload: BatchUserPreviewRequest):
             BatchUserPreview(
                 email=email,
                 username=username,
-                organization_name=payload.organization_name,
+                organization_name=_batch_organization(email, payload.organization_name),
                 permissions=payload.permissions or "research",
                 password=gen_temp_password(),
                 subscribe_start_at=payload.subscribe_start_at,
@@ -218,7 +232,7 @@ async def create_batch_users_and_send(payload: BatchUserCreateRequest, db: Sessi
             user = User(
                 username=item.username,
                 email=item.email,
-                organization_name=item.organization_name,
+                organization_name=_batch_organization(item.email, item.organization_name),
                 permissions=item.permissions or "research",
                 query_limit=item.query_limit,
                 subscribe_start_at=item.subscribe_start_at,

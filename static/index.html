@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MU 用户管理</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260601-5" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260601-6" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   </head>
   <body>
@@ -232,12 +232,12 @@
           <div class="batch-grid">
             <label>
               邮箱地址
-              <textarea name="emails" rows="7" placeholder="user1@example.com, user2@example.com" required></textarea>
+              <textarea name="emails" rows="7" placeholder="user1@example.com, user2@example.com&#10;user3@example.com" required></textarea>
             </label>
             <div class="batch-fields">
               <label>
                 公司组织
-                <input name="organization_name" placeholder="例如 SES AI" required />
+                <input name="organization_name" placeholder="留空则使用邮箱后缀，例如 example.com" />
               </label>
               <label>
                 权限
@@ -353,6 +353,6 @@
     </dialog>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=20260601-5"></script>
+    <script src="/static/app.js?v=20260601-6"></script>
   </body>
 </html>

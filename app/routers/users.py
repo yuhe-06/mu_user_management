@@ -8,8 +8,23 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_admin, get_password_hash
 from app.db import get_db
+from app.email import gen_temp_password, send_temp_password_email
 from app.models import User
-from app.schemas import UserCreate, UserListItem, UserListResponse, UserRead, UserUpdate
+from app.schemas import (
+    BatchUserCreateRequest,
+    BatchUserCreateResponse,
+    BatchUserFailure,
+    BatchUserPreview,
+    BatchUserPreviewRequest,
+    BatchUserPreviewResponse,
+    UserCreate,
+    UserEmailSendRequest,
+    UserListItem,
+    UserListResponse,
+    UserRead,
+    UserTempPasswordResponse,
+    UserUpdate,
+)
 
 
 router = APIRouter(prefix="/api/users", tags=["users"], dependencies=[Depends(get_current_admin)])
@@ -39,6 +54,30 @@ def _ensure_unique(db: Session, username: Optional[str], email: Optional[str], c
         query = query.filter(User.id != current_id)
     if query.first():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username or email already exists")
+
+
+def _parse_batch_emails(raw: str) -> list[str]:
+    emails = []
+    seen = set()
+    for part in raw.replace("\n", ",").replace(";", ",").split(","):
+        email = part.strip()
+        if not email:
+            continue
+        normalized = email.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        emails.append(email)
+    return emails
+
+
+def _username_from_email(email: str) -> str:
+    if "@" not in email:
+        raise ValueError("Invalid email")
+    username = email.split("@", 1)[0].strip()
+    if not username:
+        raise ValueError("Invalid email")
+    return username
 
 
 @router.get("", response_model=UserListResponse)
@@ -139,9 +178,142 @@ def create_user(payload: UserCreate, db: Session = Depends(get_db)):
     return user
 
 
+@router.post("/batch/preview", response_model=BatchUserPreviewResponse)
+def preview_batch_users(payload: BatchUserPreviewRequest):
+    emails = _parse_batch_emails(payload.emails)
+    if not emails:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No valid emails")
+
+    previews = []
+    for email in emails:
+        try:
+            username = _username_from_email(email)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid email: {email}") from exc
+        previews.append(
+            BatchUserPreview(
+                email=email,
+                username=username,
+                organization_name=payload.organization_name,
+                permissions=payload.permissions or "research",
+                password=gen_temp_password(),
+                subscribe_start_at=payload.subscribe_start_at,
+                subscribe_end_at=payload.subscribe_end_at,
+            )
+        )
+    return BatchUserPreviewResponse(data=previews)
+
+
+@router.post("/batch/create-send", response_model=BatchUserCreateResponse)
+async def create_batch_users_and_send(payload: BatchUserCreateRequest, db: Session = Depends(get_db)):
+    created = 0
+    emailed = 0
+    failed = []
+
+    for item in payload.users:
+        try:
+            _username_from_email(item.email)
+            _ensure_unique(db, item.username, item.email)
+            now = datetime.utcnow()
+            user = User(
+                username=item.username,
+                email=item.email,
+                organization_name=item.organization_name,
+                permissions=item.permissions or "research",
+                query_limit=item.query_limit,
+                subscribe_start_at=item.subscribe_start_at,
+                subscribe_end_at=item.subscribe_end_at,
+                hashed_password=get_password_hash(item.password),
+                deleted=False,
+                created_at=now,
+                updated_at=now,
+            )
+            db.add(user)
+            db.flush()
+            db.commit()
+            created += 1
+        except HTTPException as exc:
+            db.rollback()
+            failed.append(
+                BatchUserFailure(
+                    email=item.email,
+                    username=item.username,
+                    stage="insert",
+                    reason=str(exc.detail),
+                )
+            )
+            continue
+        except (IntegrityError, ValueError) as exc:
+            db.rollback()
+            failed.append(
+                BatchUserFailure(
+                    email=item.email,
+                    username=item.username,
+                    stage="insert",
+                    reason=str(exc),
+                )
+            )
+            continue
+
+        try:
+            await send_temp_password_email(
+                recipient=item.email,
+                username=item.username,
+                temp_password=item.password,
+            )
+            emailed += 1
+        except Exception as exc:
+            failed.append(
+                BatchUserFailure(
+                    email=item.email,
+                    username=item.username,
+                    stage="email",
+                    reason=f"Email send failed: {exc}",
+                )
+            )
+
+    return BatchUserCreateResponse(created=created, emailed=emailed, failed=failed)
+
+
 @router.get("/{user_id}", response_model=UserRead)
 def get_user(user_id: int, db: Session = Depends(get_db)):
     return _get_user_or_404(db, user_id)
+
+
+@router.post("/{user_id}/generate-password", response_model=UserTempPasswordResponse)
+def generate_user_password(user_id: int, db: Session = Depends(get_db)):
+    user = _get_user_or_404(db, user_id)
+    if not user.email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User email is empty")
+
+    return UserTempPasswordResponse(temp_password=gen_temp_password())
+
+
+@router.post("/{user_id}/send-email")
+async def send_user_email(user_id: int, payload: UserEmailSendRequest, db: Session = Depends(get_db)):
+    user = _get_user_or_404(db, user_id)
+    if not user.email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User email is empty")
+
+    user.hashed_password = get_password_hash(payload.temp_password)
+    user.updated_at = datetime.utcnow()
+
+    try:
+        db.flush()
+        await send_temp_password_email(
+            recipient=user.email,
+            username=user.username or user.email,
+            temp_password=payload.temp_password,
+        )
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Could not update user password") from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Email send failed: {exc}") from exc
+
+    return {"ok": True}
 
 
 @router.put("/{user_id}", response_model=UserRead)

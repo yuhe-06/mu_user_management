@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MU 用户管理</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260521-5" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260601-5" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   </head>
   <body>
@@ -86,6 +86,10 @@
                 <button type="submit" class="tool-button" title="搜索">
                   <i data-lucide="search"></i>
                   搜索
+                </button>
+                <button id="batchCreateButton" type="button" class="tool-button">
+                  <i data-lucide="users-round"></i>
+                  批量新增
                 </button>
                 <button id="createButton" type="button" class="primary-button">
                   <i data-lucide="user-plus"></i>
@@ -216,7 +220,139 @@
       </form>
     </dialog>
 
+    <dialog id="batchDialog" class="batch-dialog">
+      <section class="dialog-form">
+        <header>
+          <h2>批量新增用户</h2>
+          <button type="button" id="closeBatchDialog" class="icon-button" title="关闭" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <form id="batchForm" class="batch-content">
+          <div class="batch-grid">
+            <label>
+              邮箱地址
+              <textarea name="emails" rows="7" placeholder="user1@example.com, user2@example.com" required></textarea>
+            </label>
+            <div class="batch-fields">
+              <label>
+                公司组织
+                <input name="organization_name" placeholder="例如 SES AI" required />
+              </label>
+              <label>
+                权限
+                <select name="permissions">
+                  <option value="common">common</option>
+                  <option value="trial">trial</option>
+                  <option value="research" selected>research</option>
+                  <option value="explorer">explorer</option>
+                  <option value="team">team</option>
+                  <option value="enterprise1">enterprise1</option>
+                  <option value="enterprise2">enterprise2</option>
+                  <option value="enterprise3">enterprise3</option>
+                  <option value="joint">joint</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label>
+                订阅开始
+                <input name="subscribe_start_at" type="datetime-local" required />
+              </label>
+              <label>
+                订阅结束
+                <input name="subscribe_end_at" type="datetime-local" required />
+              </label>
+              <button type="submit" id="previewBatchButton" class="primary-button">
+                <i data-lucide="list-checks"></i>
+                生成插入信息
+              </button>
+            </div>
+          </div>
+          <p id="batchError" class="error-text" role="alert"></p>
+        </form>
+        <section id="batchPreviewSection" class="batch-section hidden">
+          <div class="batch-section-title">
+            <strong id="batchPreviewSummary">0 个待新增用户</strong>
+            <span>确认后将逐条插入用户并发送临时密码邮件。</span>
+          </div>
+          <div class="batch-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>用户名</th>
+                  <th>邮箱</th>
+                  <th>组织</th>
+                  <th>权限</th>
+                  <th>订阅开始</th>
+                  <th>订阅结束</th>
+                  <th>临时密码</th>
+                </tr>
+              </thead>
+              <tbody id="batchPreviewBody"></tbody>
+            </table>
+          </div>
+        </section>
+        <section id="batchResultSection" class="batch-section hidden">
+          <div class="batch-section-title">
+            <strong id="batchResultSummary"></strong>
+            <span id="batchFailureSummary"></span>
+          </div>
+          <div id="batchFailureWrap" class="batch-failure-wrap hidden">
+            <div class="batch-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>邮箱</th>
+                    <th>用户名</th>
+                    <th>阶段</th>
+                    <th>原因</th>
+                  </tr>
+                </thead>
+                <tbody id="batchFailureBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        <footer>
+          <button type="button" id="cancelBatchDialog" class="tool-button">关闭</button>
+          <button type="button" id="confirmBatchButton" class="primary-button" disabled>
+            <i data-lucide="send"></i>
+            确认新增并发送
+          </button>
+        </footer>
+      </section>
+    </dialog>
+
+    <dialog id="mailDialog" class="mail-dialog">
+      <section class="dialog-form">
+        <header>
+          <h2>发送临时密码邮件</h2>
+          <button type="button" id="closeMailDialog" class="icon-button" title="关闭" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div class="mail-content">
+          <p class="mail-target" id="mailUserLabel"></p>
+          <p class="mail-note">确认发送后，用户密码将修改为下面的临时密码，并通过邮件发送给该用户。</p>
+          <div class="password-panel">
+            <code id="mailPassword"></code>
+            <button type="button" id="copyMailPassword" class="icon-button" title="复制密码" aria-label="复制密码">
+              <i data-lucide="copy"></i>
+            </button>
+          </div>
+          <p id="mailError" class="error-text" role="alert"></p>
+        </div>
+        <footer>
+          <button type="button" id="cancelMailDialog" class="tool-button">暂不发送</button>
+          <button type="button" id="confirmMailDialog" class="primary-button">
+            <i data-lucide="send"></i>
+            确认发送
+          </button>
+        </footer>
+      </section>
+    </dialog>
+
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=20260521-5"></script>
+    <script src="/static/app.js?v=20260601-5"></script>
   </body>
 </html>

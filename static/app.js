@@ -5,6 +5,8 @@ const state = {
   total: 0,
   filters: {},
   users: [],
+  pendingEmail: null,
+  batchUsers: [],
 };
 
 const els = {
@@ -15,6 +17,7 @@ const els = {
   adminName: document.querySelector("#adminName"),
   logoutButton: document.querySelector("#logoutButton"),
   filterForm: document.querySelector("#filterForm"),
+  batchCreateButton: document.querySelector("#batchCreateButton"),
   createButton: document.querySelector("#createButton"),
   userTableBody: document.querySelector("#userTableBody"),
   userTableHeader: document.querySelector("#userTableHeader"),
@@ -31,6 +34,29 @@ const els = {
   closeDialog: document.querySelector("#closeDialog"),
   cancelDialog: document.querySelector("#cancelDialog"),
   formError: document.querySelector("#formError"),
+  batchDialog: document.querySelector("#batchDialog"),
+  batchForm: document.querySelector("#batchForm"),
+  closeBatchDialog: document.querySelector("#closeBatchDialog"),
+  cancelBatchDialog: document.querySelector("#cancelBatchDialog"),
+  previewBatchButton: document.querySelector("#previewBatchButton"),
+  confirmBatchButton: document.querySelector("#confirmBatchButton"),
+  batchError: document.querySelector("#batchError"),
+  batchPreviewSection: document.querySelector("#batchPreviewSection"),
+  batchPreviewSummary: document.querySelector("#batchPreviewSummary"),
+  batchPreviewBody: document.querySelector("#batchPreviewBody"),
+  batchResultSection: document.querySelector("#batchResultSection"),
+  batchResultSummary: document.querySelector("#batchResultSummary"),
+  batchFailureSummary: document.querySelector("#batchFailureSummary"),
+  batchFailureWrap: document.querySelector("#batchFailureWrap"),
+  batchFailureBody: document.querySelector("#batchFailureBody"),
+  mailDialog: document.querySelector("#mailDialog"),
+  mailUserLabel: document.querySelector("#mailUserLabel"),
+  mailPassword: document.querySelector("#mailPassword"),
+  mailError: document.querySelector("#mailError"),
+  closeMailDialog: document.querySelector("#closeMailDialog"),
+  cancelMailDialog: document.querySelector("#cancelMailDialog"),
+  copyMailPassword: document.querySelector("#copyMailPassword"),
+  confirmMailDialog: document.querySelector("#confirmMailDialog"),
   toast: document.querySelector("#toast"),
 };
 
@@ -144,6 +170,16 @@ function fromDateTimeLocal(value) {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function addMonths(date, months) {
+  const next = new Date(date);
+  const day = next.getDate();
+  next.setMonth(next.getMonth() + months);
+  if (next.getDate() !== day) {
+    next.setDate(0);
+  }
+  return next;
 }
 
 function cleanPayload(formData, mode) {
@@ -262,6 +298,9 @@ function renderTable() {
               <button class="icon-button" title="编辑" aria-label="编辑" data-action="edit" data-id="${user.id}">
                 <i data-lucide="pencil"></i>
               </button>
+              <button class="icon-button" title="发送临时密码邮件" aria-label="发送临时密码邮件" data-action="send-email" data-id="${user.id}">
+                <i data-lucide="mail"></i>
+              </button>
               <button class="icon-button" title="删除" aria-label="删除" data-action="delete" data-id="${user.id}">
                 <i data-lucide="trash-2"></i>
               </button>
@@ -376,6 +415,185 @@ async function deleteUser(id) {
   await loadUsers();
 }
 
+function resetBatchDialog() {
+  const now = new Date();
+  state.batchUsers = [];
+  els.batchForm.reset();
+  els.batchForm.elements.subscribe_start_at.value = toDateTimeLocal(now);
+  els.batchForm.elements.subscribe_end_at.value = toDateTimeLocal(addMonths(now, 1));
+  els.batchError.textContent = "";
+  els.batchPreviewSection.classList.add("hidden");
+  els.batchResultSection.classList.add("hidden");
+  els.batchFailureWrap.classList.add("hidden");
+  els.batchPreviewBody.innerHTML = "";
+  els.batchFailureBody.innerHTML = "";
+  els.confirmBatchButton.disabled = true;
+}
+
+function openBatchDialog() {
+  resetBatchDialog();
+  els.batchForm.elements.permissions.value = "research";
+  els.batchDialog.showModal();
+  iconRefresh();
+}
+
+function renderBatchPreview() {
+  els.batchPreviewSummary.textContent = `${state.batchUsers.length} 个待新增用户`;
+  els.batchPreviewBody.innerHTML = state.batchUsers
+    .map(
+      (user) => `
+        <tr>
+          <td>${escapeHtml(user.username)}</td>
+          <td>${escapeHtml(user.email)}</td>
+          <td>${displayValue(user.organization_name)}</td>
+          <td><span class="badge">${displayValue(user.permissions)}</span></td>
+          <td>${displayDate(user.subscribe_start_at)}</td>
+          <td>${displayDate(user.subscribe_end_at)}</td>
+          <td><code>${escapeHtml(user.password)}</code></td>
+        </tr>
+      `
+    )
+    .join("");
+  els.batchPreviewSection.classList.remove("hidden");
+  els.confirmBatchButton.disabled = state.batchUsers.length === 0;
+}
+
+function renderBatchResult(result) {
+  const failed = result.failed || [];
+  els.batchResultSummary.textContent = `已插入 ${result.created || 0} 个用户，已发送 ${result.emailed || 0} 封邮件`;
+  els.batchFailureSummary.textContent = failed.length ? `${failed.length} 个用户失败` : "无失败用户";
+  els.batchFailureWrap.classList.toggle("hidden", failed.length === 0);
+  els.batchFailureBody.innerHTML = failed
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeHtml(item.email)}</td>
+          <td>${displayValue(item.username)}</td>
+          <td>${item.stage === "insert" ? "插入" : "邮件"}</td>
+          <td>${escapeHtml(item.reason)}</td>
+        </tr>
+      `
+    )
+    .join("");
+  els.batchResultSection.classList.remove("hidden");
+}
+
+async function previewBatchUsers(event) {
+  event.preventDefault();
+  els.batchError.textContent = "";
+  els.batchResultSection.classList.add("hidden");
+  els.previewBatchButton.disabled = true;
+  els.confirmBatchButton.disabled = true;
+
+  const formData = new FormData(els.batchForm);
+  try {
+    const data = await request("/api/users/batch/preview", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({
+        emails: formData.get("emails"),
+        organization_name: formData.get("organization_name"),
+        permissions: formData.get("permissions"),
+        subscribe_start_at: fromDateTimeLocal(formData.get("subscribe_start_at")),
+        subscribe_end_at: fromDateTimeLocal(formData.get("subscribe_end_at")),
+      }),
+    });
+    state.batchUsers = data.data || [];
+    renderBatchPreview();
+  } catch (err) {
+    state.batchUsers = [];
+    els.batchPreviewSection.classList.add("hidden");
+    els.batchError.textContent = err.message;
+  } finally {
+    els.previewBatchButton.disabled = false;
+  }
+}
+
+async function confirmBatchUsers() {
+  if (!state.batchUsers.length) return;
+  els.batchError.textContent = "";
+  els.confirmBatchButton.disabled = true;
+  try {
+    const result = await request("/api/users/batch/create-send", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ users: state.batchUsers }),
+    });
+    renderBatchResult(result);
+    state.batchUsers = [];
+    els.batchPreviewSection.classList.add("hidden");
+    await loadUsers();
+    showToast("批量新增执行完成");
+  } catch (err) {
+    els.batchError.textContent = err.message;
+  } finally {
+    els.confirmBatchButton.disabled = state.batchUsers.length === 0;
+  }
+}
+
+function openMailDialog(user, tempPassword) {
+  state.pendingEmail = {
+    id: user.id,
+    username: user.username || user.email || `ID ${user.id}`,
+    email: user.email || "",
+    tempPassword,
+  };
+  els.mailError.textContent = "";
+  els.mailUserLabel.textContent = `${state.pendingEmail.username} (${state.pendingEmail.email || "-"})`;
+  els.mailPassword.textContent = tempPassword;
+  els.mailDialog.showModal();
+  iconRefresh();
+}
+
+async function prepareUserEmail(id, button) {
+  const user = state.users.find((item) => String(item.id) === String(id));
+
+  button.disabled = true;
+  try {
+    const data = await request(`/api/users/${id}/generate-password`, {
+      method: "POST",
+      headers: authHeaders(),
+    });
+    openMailDialog(user || { id, username: "", email: "" }, data.temp_password);
+  } catch (err) {
+    showToast(err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function confirmSendUserEmail() {
+  if (!state.pendingEmail) return;
+
+  els.mailError.textContent = "";
+  els.confirmMailDialog.disabled = true;
+  try {
+    await request(`/api/users/${state.pendingEmail.id}/send-email`, {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ temp_password: state.pendingEmail.tempPassword }),
+    });
+    els.mailDialog.close();
+    state.pendingEmail = null;
+    showToast("临时密码邮件已发送");
+    await loadUsers();
+  } catch (err) {
+    els.mailError.textContent = err.message;
+  } finally {
+    els.confirmMailDialog.disabled = false;
+  }
+}
+
+async function copyMailPassword() {
+  if (!state.pendingEmail) return;
+  try {
+    await navigator.clipboard.writeText(state.pendingEmail.tempPassword);
+    showToast("密码已复制");
+  } catch {
+    showToast("复制失败，请手动复制");
+  }
+}
+
 async function bootstrap() {
   renderTableHeader();
   renderColumnMenu();
@@ -425,10 +643,23 @@ els.filterForm.addEventListener("submit", async (event) => {
   await loadUsers();
 });
 
+els.batchCreateButton.addEventListener("click", openBatchDialog);
 els.createButton.addEventListener("click", () => openDialog());
 els.closeDialog.addEventListener("click", () => els.userDialog.close());
 els.cancelDialog.addEventListener("click", () => els.userDialog.close());
 els.userForm.addEventListener("submit", submitUserForm);
+els.closeBatchDialog.addEventListener("click", () => els.batchDialog.close());
+els.cancelBatchDialog.addEventListener("click", () => els.batchDialog.close());
+els.batchForm.addEventListener("submit", previewBatchUsers);
+els.confirmBatchButton.addEventListener("click", confirmBatchUsers);
+els.closeMailDialog.addEventListener("click", () => els.mailDialog.close());
+els.cancelMailDialog.addEventListener("click", () => els.mailDialog.close());
+els.confirmMailDialog.addEventListener("click", confirmSendUserEmail);
+els.copyMailPassword.addEventListener("click", copyMailPassword);
+els.mailDialog.addEventListener("close", () => {
+  state.pendingEmail = null;
+  els.mailError.textContent = "";
+});
 
 els.userTableHeader.addEventListener("click", async (event) => {
   const button = event.target.closest("button[data-sort-key]");
@@ -488,6 +719,9 @@ els.userTableBody.addEventListener("click", async (event) => {
   if (button.dataset.action === "edit") {
     const user = await request(`/api/users/${id}`, { headers: authHeaders() });
     openDialog(user);
+  }
+  if (button.dataset.action === "send-email") {
+    await prepareUserEmail(id, button);
   }
   if (button.dataset.action === "delete") {
     await deleteUser(id);

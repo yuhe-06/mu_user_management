@@ -54,6 +54,55 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(default=None, min_length=6, max_length=128)
 
 
+class UserEmailSendRequest(BaseModel):
+    temp_password: str = Field(min_length=6, max_length=128)
+
+
+class UserTempPasswordResponse(BaseModel):
+    ok: bool = True
+    temp_password: str
+
+
+class BatchUserPreview(BaseModel):
+    email: str = Field(min_length=1, max_length=255)
+    username: str = Field(min_length=1, max_length=255)
+    organization_name: Optional[str] = None
+    permissions: Optional[str] = "research"
+    password: str = Field(min_length=6, max_length=128)
+    query_limit: int = Field(default=100, ge=0, le=150)
+    subscribe_start_at: Optional[datetime] = None
+    subscribe_end_at: Optional[datetime] = None
+
+
+class BatchUserPreviewRequest(BaseModel):
+    emails: str = Field(min_length=1)
+    organization_name: Optional[str] = None
+    permissions: Optional[str] = "research"
+    subscribe_start_at: Optional[datetime] = None
+    subscribe_end_at: Optional[datetime] = None
+
+
+class BatchUserPreviewResponse(BaseModel):
+    data: list[BatchUserPreview]
+
+
+class BatchUserCreateRequest(BaseModel):
+    users: list[BatchUserPreview] = Field(min_length=1)
+
+
+class BatchUserFailure(BaseModel):
+    email: str
+    username: Optional[str] = None
+    stage: str
+    reason: str
+
+
+class BatchUserCreateResponse(BaseModel):
+    created: int
+    emailed: int
+    failed: list[BatchUserFailure]
+
+
 class UserRead(BaseModel):
     id: int
     username: Optional[str] = None

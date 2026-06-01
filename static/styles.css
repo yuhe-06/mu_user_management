@@ -26,7 +26,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -97,7 +98,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 40px;
   border: 1px solid var(--line);
@@ -109,9 +111,15 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(18, 110, 122, 0.14);
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.45;
 }
 
 .admin-layout {
@@ -231,6 +239,11 @@ select:focus {
   color: var(--ink);
   background: #fff;
   border-color: var(--line);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 svg {
@@ -476,6 +489,108 @@ dialog::backdrop {
   padding: 0 20px;
 }
 
+.batch-dialog {
+  width: min(1180px, calc(100vw - 28px));
+}
+
+.batch-content,
+.batch-section {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.batch-grid {
+  display: grid;
+  grid-template-columns: minmax(360px, 1fr) minmax(240px, 320px);
+  gap: 16px;
+  align-items: start;
+}
+
+.batch-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.batch-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.batch-section-title span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.batch-table-wrap {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.batch-table-wrap table {
+  min-width: 760px;
+}
+
+.batch-table-wrap code {
+  color: var(--primary-strong);
+  font-weight: 750;
+}
+
+.batch-failure-wrap td:last-child {
+  max-width: 460px;
+  white-space: normal;
+}
+
+.mail-dialog {
+  width: min(560px, calc(100vw - 28px));
+}
+
+.mail-content {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.mail-target,
+.mail-note {
+  margin: 0;
+}
+
+.mail-target {
+  font-weight: 750;
+}
+
+.mail-note {
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.password-panel {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.password-panel code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--primary-strong);
+  font-size: 16px;
+  font-weight: 750;
+}
+
 .toast {
   position: fixed;
   right: 22px;
@@ -508,6 +623,10 @@ dialog::backdrop {
 
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .batch-grid {
+    grid-template-columns: 1fr;
   }
 }
 

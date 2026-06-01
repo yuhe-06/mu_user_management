@@ -13,6 +13,11 @@ class Settings(BaseModel):
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")
     algorithm: str = os.getenv("ALGORITHM", "HS256")
     access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.office365.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user: str = os.getenv("SMTP_USER", "noreply@sesaiinc.onmicrosoft.com")
+    smtp_pass: str = os.getenv("SMTP_PASS", "")
+    mail_from: str = os.getenv("MAIL_FROM", "noreply@ses.ai")
     cors_origins: list[str] = [
         origin.strip()
         for origin in os.getenv("CORS_ORIGINS", "http://localhost:8010,http://127.0.0.1:8010").split(",")

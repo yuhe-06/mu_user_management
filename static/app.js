@@ -15,6 +15,7 @@ const els = {
   loginForm: document.querySelector("#loginForm"),
   loginError: document.querySelector("#loginError"),
   adminName: document.querySelector("#adminName"),
+  sendReportButton: document.querySelector("#sendReportButton"),
   logoutButton: document.querySelector("#logoutButton"),
   filterForm: document.querySelector("#filterForm"),
   batchCreateButton: document.querySelector("#batchCreateButton"),
@@ -57,6 +58,12 @@ const els = {
   cancelMailDialog: document.querySelector("#cancelMailDialog"),
   copyMailPassword: document.querySelector("#copyMailPassword"),
   confirmMailDialog: document.querySelector("#confirmMailDialog"),
+  reportDialog: document.querySelector("#reportDialog"),
+  closeReportDialog: document.querySelector("#closeReportDialog"),
+  cancelReportDialog: document.querySelector("#cancelReportDialog"),
+  confirmReportDialog: document.querySelector("#confirmReportDialog"),
+  reportRecipients: document.querySelector("#reportRecipients"),
+  reportError: document.querySelector("#reportError"),
   toast: document.querySelector("#toast"),
 };
 
@@ -594,6 +601,73 @@ async function copyMailPassword() {
   }
 }
 
+function parseRecipientEmails(value) {
+  const emails = [];
+  const seen = new Set();
+  for (const part of value.split(/[\s,;，]+/)) {
+    const email = part.trim();
+    if (!email) continue;
+    const normalized = email.toLowerCase();
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    emails.push(email);
+  }
+  if (!emails.length) {
+    throw new Error("请填写至少一个收件人邮箱");
+  }
+  return emails;
+}
+
+async function openReportDialog() {
+  els.reportError.textContent = "";
+  els.reportRecipients.value = "加载中...";
+  els.reportRecipients.disabled = true;
+  els.confirmReportDialog.disabled = false;
+  els.confirmReportDialog.innerHTML = '<i data-lucide="send"></i>确认发送';
+  els.reportDialog.showModal();
+  iconRefresh();
+  try {
+    const data = await request("/api/reports/user-permissions/recipients", {
+      headers: authHeaders(),
+    });
+    els.reportRecipients.value = (data.recipients || []).join(", ");
+  } catch (err) {
+    els.reportRecipients.value = "";
+    els.reportError.textContent = err.message;
+  } finally {
+    els.reportRecipients.disabled = false;
+  }
+}
+
+async function confirmSendReport() {
+  els.reportError.textContent = "";
+  let recipients;
+  try {
+    recipients = parseRecipientEmails(els.reportRecipients.value);
+  } catch (err) {
+    els.reportError.textContent = err.message;
+    return;
+  }
+  els.confirmReportDialog.disabled = true;
+  els.confirmReportDialog.innerHTML = '<i data-lucide="loader-circle"></i>发送中';
+  iconRefresh();
+  try {
+    await request("/api/reports/user-permissions/send", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify({ recipients }),
+    });
+    els.reportDialog.close();
+    showToast("统计报告邮件已发送");
+  } catch (err) {
+    els.reportError.textContent = err.message;
+  } finally {
+    els.confirmReportDialog.disabled = false;
+    els.confirmReportDialog.innerHTML = '<i data-lucide="send"></i>确认发送';
+    iconRefresh();
+  }
+}
+
 async function bootstrap() {
   renderTableHeader();
   renderColumnMenu();
@@ -634,6 +708,7 @@ els.loginForm.addEventListener("submit", async (event) => {
 });
 
 els.logoutButton.addEventListener("click", () => logout(true));
+els.sendReportButton.addEventListener("click", openReportDialog);
 
 els.filterForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -659,6 +734,12 @@ els.copyMailPassword.addEventListener("click", copyMailPassword);
 els.mailDialog.addEventListener("close", () => {
   state.pendingEmail = null;
   els.mailError.textContent = "";
+});
+els.closeReportDialog.addEventListener("click", () => els.reportDialog.close());
+els.cancelReportDialog.addEventListener("click", () => els.reportDialog.close());
+els.confirmReportDialog.addEventListener("click", confirmSendReport);
+els.reportDialog.addEventListener("close", () => {
+  els.reportError.textContent = "";
 });
 
 els.userTableHeader.addEventListener("click", async (event) => {

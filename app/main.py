@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.routers import auth, users
+from app.routers import auth, reports, users
 
 
 settings = get_settings()
@@ -25,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(reports.router)
 app.include_router(users.router)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

@@ -139,6 +139,12 @@ textarea {
   border-bottom: 1px solid var(--line);
 }
 
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .toolbar {
   display: block;
   padding: 12px 28px;
@@ -546,8 +552,9 @@ dialog::backdrop {
   white-space: normal;
 }
 
-.mail-dialog {
-  width: min(560px, calc(100vw - 28px));
+.mail-dialog,
+.report-dialog {
+  width: min(640px, calc(100vw - 28px));
 }
 
 .mail-content {
@@ -569,6 +576,10 @@ dialog::backdrop {
   color: var(--muted);
   line-height: 1.5;
   font-size: 13px;
+}
+
+#reportRecipients {
+  min-height: 120px;
 }
 
 .password-panel {
@@ -635,6 +646,15 @@ dialog::backdrop {
   .toolbar {
     padding-left: 16px;
     padding-right: 16px;
+  }
+
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 
   .table-surface {

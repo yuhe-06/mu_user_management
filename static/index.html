@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MU 用户管理</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260601-6" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260601-7" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   </head>
   <body>
@@ -38,9 +38,15 @@
             <h1>用户管理</h1>
             <p id="adminName"></p>
           </div>
-          <button id="logoutButton" class="icon-button" title="退出登录" aria-label="退出登录">
-            <i data-lucide="log-out"></i>
-          </button>
+          <div class="topbar-actions">
+            <button id="sendReportButton" class="tool-button" title="发送用户权限统计报告">
+              <i data-lucide="mail-check"></i>
+              发送统计报告
+            </button>
+            <button id="logoutButton" class="icon-button" title="退出登录" aria-label="退出登录">
+              <i data-lucide="log-out"></i>
+            </button>
+          </div>
         </header>
 
         <section class="toolbar">
@@ -352,7 +358,34 @@
       </section>
     </dialog>
 
+    <dialog id="reportDialog" class="report-dialog">
+      <section class="dialog-form">
+        <header>
+          <h2>发送统计报告</h2>
+          <button type="button" id="closeReportDialog" class="icon-button" title="关闭" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div class="mail-content">
+          <p class="mail-target">MU User Permissions Report</p>
+          <p class="mail-note">确认后将立即生成用户权限统计报告，并发送给下面的收件人。</p>
+          <label>
+            收件人邮箱
+            <textarea id="reportRecipients" rows="5" placeholder="name@ses.ai, another@ses.ai"></textarea>
+          </label>
+          <p id="reportError" class="error-text" role="alert"></p>
+        </div>
+        <footer>
+          <button type="button" id="cancelReportDialog" class="tool-button">取消</button>
+          <button type="button" id="confirmReportDialog" class="primary-button">
+            <i data-lucide="send"></i>
+            确认发送
+          </button>
+        </footer>
+      </section>
+    </dialog>
+
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=20260601-6"></script>
+    <script src="/static/app.js?v=20260601-7"></script>
   </body>
 </html>

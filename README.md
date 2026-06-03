@@ -9,6 +9,7 @@
 - 新增用户：写入 `username`、`email`、`permissions`，并对密码做 bcrypt 哈希。
 - 批量新增用户：输入多个邮箱、组织、权限和订阅时间，先预览随机密码和插入信息，确认后逐条插入并发送邮件；邮箱支持逗号或换行分隔，组织留空时默认使用邮箱后缀，失败用户单独汇总。
 - 发送邮件：在用户列表中为单个用户生成临时密码并弹框展示，管理员确认后才修改用户密码并发送 Molecular Universe 临时密码邮件。
+- 发送统计报告：页面右上角可生成并发送用户权限统计报告，发送前会弹框确认并允许修改收件人列表。
 - 编辑用户：支持更新用户表业务字段；密码留空时不会修改原密码。
 - 删除用户：软删除，将 `deleted` 置为 `true`。
 
@@ -52,6 +53,8 @@ docker compose down
 
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `GET /api/reports/user-permissions/recipients`
+- `POST /api/reports/user-permissions/send`
 - `GET /api/users`
 - `POST /api/users`
 - `POST /api/users/batch/preview`

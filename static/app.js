@@ -1,5 +1,6 @@
 const state = {
   token: localStorage.getItem("mu_user_management_token") || "",
+  language: localStorage.getItem("mu_user_management_language") || "zh",
   activeView: "platform",
   monitorStartDate: localStorage.getItem("mu_user_management_monitor_start_date") || "",
   monitorEndDate: localStorage.getItem("mu_user_management_monitor_end_date") || "",
@@ -43,6 +44,8 @@ const els = {
   platformNav: document.querySelector("#platformNav"),
   agentNav: document.querySelector("#agentNav"),
   managementNav: document.querySelector("#managementNav"),
+  languageToggle: document.querySelector("#languageToggle"),
+  currentLanguageLabel: document.querySelector("#currentLanguageLabel"),
   monitorView: document.querySelector("#monitorView"),
   platformView: document.querySelector("#platformView"),
   agentView: document.querySelector("#agentView"),
@@ -177,6 +180,255 @@ const nullableFields = new Set([
 
 const dateTimeFields = new Set(["created_at", "updated_at", "subscribe_start_at", "subscribe_end_at"]);
 const columnStorageKey = "mu_user_management_visible_columns";
+
+const i18nText = {
+  "用户管理": "User Management",
+  "管理员工作台": "Admin workspace",
+  "管理后台": "Admin Console",
+  "数据监控": "Data Monitoring",
+  "MU概览": "MU Overview",
+  "用户概览": "User Overview",
+  "StarSeeker概览": "StarSeeker Overview",
+  "查看平台整体用户、活跃与功能使用表现。": "View platform users, activity, and feature usage.",
+  "查看用户规模、行为活跃度和会话使用情况。": "View user scale, activity, and session usage.",
+  "查看 StarSeeker 用户提问 Session 列表和会话创建趋势。": "View StarSeeker question sessions and creation trends.",
+  "搜索、筛选并维护用户账号与权限。": "Search, filter, and manage user accounts and permissions.",
+  "语言": "Language",
+  "中文": "中文",
+  "English": "English",
+  "账号": "Account",
+  "密码": "Password",
+  "登录": "Log in",
+  "退出登录": "Log out",
+  "发送统计报告": "Send report",
+  "统计时间": "Date Range",
+  "用户群体": "Audience",
+  "全部": "All",
+  "SES 内部": "SES Internal",
+  "外部客户": "External Customers",
+  "开始时间": "Start Date",
+  "结束时间": "End Date",
+  "应用": "Apply",
+  "重置": "Reset",
+  "汇总全平台使用情况：基础数据来自 `umap_db`，StarSeeker 数据来自 Deerflow `store`。": "Summarizes platform-wide usage. Core data comes from `umap_db`; StarSeeker data comes from Deerflow `store`.",
+  "趋势": "Trends",
+  "按单日查看七项用户指标变化；暂无可靠数据源的指标保留定义但不展示虚构数值。": "View seven user metrics by day. Metrics without reliable sources keep definitions but do not show fabricated values.",
+  "用户指标趋势": "User Metrics Trend",
+  "用户结构": "User Structure",
+  "统计截至所选区间最后一天的累计有效用户，与注册用户总数保持一致。": "Counts valid users as of the last day of the selected range, consistent with total registered users.",
+  "用户角色": "User Roles",
+  "用户组织": "User Organizations",
+  "热门调用接口与活跃用户": "Top APIs and Active Users",
+  "按原始调用接口统计访问次数，并展示当前用户群体筛选下的活跃用户。": "Counts raw API calls and shows active users under the current audience filter.",
+  "热门调用接口": "Top APIs",
+  "调用接口": "API",
+  "次数": "Count",
+  "活跃用户": "Active Users",
+  "用户": "User",
+  "组织": "Organization",
+  "行为次数": "Activity Count",
+  "上一页": "Previous",
+  "下一页": "Next",
+  "选择日期区间后，趋势会自动按合适的周期聚合。": "Select a date range and trends will be aggregated automatically.",
+  "选择 MU 概览的日期区间后，平台概览和功能使用会独立刷新。": "Select the MU Overview date range to refresh platform overview and feature usage independently.",
+  "注册数据来自 `umap_db`；活跃数据覆盖全平台，并合并 Deerflow StarSeeker Session。": "Registration data comes from `umap_db`; activity covers the platform and merges Deerflow StarSeeker sessions.",
+  "平台指标趋势": "Platform Metrics Trend",
+  "按单日展示注册、登录与活跃指标变化；登录相关指标当前暂无真实事件源。": "Shows registration, login, and activity metrics by day. Login metrics currently have no real event source.",
+  "功能使用": "Feature Usage",
+  "普通功能来自 `umap_db.activity`；StarSeeker 来自 Deerflow `store`，一条 thread 计一次调用。": "Standard features come from `umap_db.activity`; StarSeeker comes from Deerflow `store`, with one thread counted as one call.",
+  "功能": "Feature",
+  "调用次数": "Call Count",
+  "调用用户数": "Calling Users",
+  "人均调用次数": "Calls per User",
+  "日均调用次数": "Daily Avg Calls",
+  "功能按天趋势": "Daily Feature Trends",
+  "数据来源为 `deerflow_prod`，切换日期区间后会独立刷新 Agent 监控。": "Data comes from `deerflow_prod`; changing the date range refreshes Agent monitoring independently.",
+  "Agent 使用概览": "Agent Usage Overview",
+  "会话来自 Deerflow `store`；轮数由 checkpoint 消息中的用户提问与 Agent 回答配对统计。": "Sessions come from Deerflow `store`; rounds are calculated from paired user questions and Agent answers in checkpoint messages.",
+  "创建会话次数 / 创建会话用户数趋势": "Session Creations / Session Users Trend",
+  "使用用户分布": "Usage Distribution",
+  "按所选时间段内创建的 Agent Session，分别观察用户与组织的使用量占比和排名。": "Analyze user and organization shares and rankings based on Agent sessions created in the selected range.",
+  "用户使用分布": "User Usage Distribution",
+  "组织使用分布": "Organization Usage Distribution",
+  "留存与粘性分析": "Retention and Stickiness",
+  "基于所选时间段内创建 Session 的用户，观察回访、跨周活跃与多日使用情况。": "Analyze returning, cross-week, and multi-day usage among users who created sessions in the selected range.",
+  "活跃天数分布": "Active Days Distribution",
+  "活跃天数区间": "Active Days Range",
+  "用户数": "Users",
+  "高粘性用户列表": "High-Stickiness Users",
+  "用户名": "Username",
+  "活跃天数": "Active Days",
+  "活跃周数": "Active Weeks",
+  "创建会话次数": "Session Creations",
+  "最近创建时间": "Last Created",
+  "浏览统计时间段内的全部用户使用汇总和提问明细，并支持导出完整对话。": "Browse user usage summaries and question details in the selected range, with full conversation export.",
+  "用户使用": "User Usage",
+  "提问明细": "Question Details",
+  "Session 名称": "Session Name",
+  "创建时间": "Created At",
+  "操作": "Actions",
+  "邮箱": "Email",
+  "搜索用户名": "Search username",
+  "搜索邮箱": "Search email",
+  "搜索组织": "Search organization",
+  "权限": "Permission",
+  "关键词": "Keyword",
+  "模糊搜索保留字段": "Fuzzy search reserved fields",
+  "搜索": "Search",
+  "批量新增": "Batch Add",
+  "新增用户": "New User",
+  "展示列": "Columns",
+  "暂无用户": "No users",
+  "关闭": "Close",
+  "取消": "Cancel",
+  "保存": "Save",
+  "批量新增用户": "Batch Add Users",
+  "留空则使用邮箱后缀，例如 example.com": "Leave empty to use email domain, e.g. example.com",
+  "确认后将逐条插入用户并发送临时密码邮件。": "After confirmation, users will be inserted one by one and temporary password emails will be sent.",
+  "订阅开始": "Subscription Start",
+  "订阅结束": "Subscription End",
+  "临时密码": "Temporary Password",
+  "阶段": "Stage",
+  "原因": "Reason",
+  "发送临时密码邮件": "Send Temporary Password Email",
+  "确认发送后，用户密码将修改为下面的临时密码，并通过邮件发送给该用户。": "After confirmation, the user's password will be changed to the temporary password below and emailed to the user.",
+  "复制密码": "Copy password",
+  "暂不发送": "Do not send",
+  "确认发送": "Confirm send",
+  "确认后将立即生成用户权限统计报告，并发送给下面的收件人。": "After confirmation, the user permission report will be generated and sent to the recipients below.",
+  "收件人邮箱": "Recipient emails",
+  "功能趋势": "Feature Trend",
+  "注册用户数": "Registered Users",
+  "新注册用户数": "New Registered Users",
+  "登录用户数": "Login Users",
+  "登录次数": "Login Count",
+  "活跃用户数": "Active Users",
+  "活跃次数": "Activities",
+  "人均活跃次数": "Activities per Active User",
+  "人均停留时长": "Avg Stay Duration",
+  "平台活跃率（%）": "Platform Active Rate (%)",
+  "平台活跃率": "Platform Active Rate",
+  "创建会话用户数": "Session Users",
+  "平均会话轮数": "Avg Session Rounds",
+  "人均创建会话次数": "Sessions per User",
+  "回访用户数": "Returning Users",
+  "回访率": "Returning Rate",
+  "高粘性用户数": "High-Stickiness Users",
+  "跨周活跃用户数": "Cross-Week Active Users",
+  "人均活跃天数": "Avg Active Days",
+  "下载": "Download",
+  "编辑": "Edit",
+  "删除": "Delete",
+  "暂无数据": "No data",
+  "未设置": "Unset",
+  "其他": "Other",
+  "是": "Yes",
+  "否": "No",
+  "已退出登录": "Logged out",
+  "登录已过期": "Login expired",
+  "请求失败": "Request failed",
+  "导出失败": "Export failed",
+  "完整对话已导出": "Full conversation exported",
+  "新增用户需要填写密码": "Password is required for new users",
+  "用户已更新": "User updated",
+  "用户已创建": "User created",
+  "用户已删除": "User deleted",
+  "批量新增执行完成": "Batch add completed",
+  "临时密码邮件已发送": "Temporary password email sent",
+  "密码已复制": "Password copied",
+  "复制失败，请手动复制": "Copy failed, please copy manually",
+  "请填写至少一个收件人邮箱": "Please enter at least one recipient email",
+  "加载中...": "Loading...",
+  "统计报告邮件已发送": "Report email sent",
+  "至少保留一列": "Keep at least one column",
+  "插入": "Insert",
+  "邮件": "Email",
+  "无失败用户": "No failed users",
+  "编辑用户": "Edit User",
+  "留空则不修改": "Leave empty to keep unchanged",
+  "教育邮箱": "Education Email",
+  "会话数": "Sessions",
+  "最近活跃": "Last Active",
+  "新权限": "New Permission",
+  "Teams 邮箱": "Teams Email",
+  "创建日期": "Created Date",
+  "更新日期": "Updated Date",
+  "已删除": "Deleted",
+  "截至所选区间最后一天的累计有效用户数": "Cumulative valid users as of the last day of the selected range",
+  "所选区间内新增的有效用户数": "New valid users in the selected range",
+  "暂无真实 login 事件源，暂不计算": "No reliable login event source; not calculated",
+  "umap_db 与 StarSeeker 用户合并去重": "Deduplicated users from umap_db and StarSeeker",
+  "umap_db activity + StarSeeker Session": "umap_db activity plus StarSeeker sessions",
+  "活跃次数 / 活跃用户数": "Activities / active users",
+  "暂无可靠进入与离开时间数据，暂不计算": "No reliable enter/exit duration data; not calculated",
+  "取所选统计时间段最后一天的累计注册用户数": "Cumulative registered users on the last day of the selected range",
+  "统计时间段内新增的有效用户数": "New valid users in the selected range",
+  "暂无登录日志数据，待后续补充真实 login 事件源": "No login log source yet; pending real login events",
+  "暂无登录日志数据，每登录一次计一次的口径暂无法计算": "No login log source; login count cannot be calculated yet",
+  "umap_db 活跃用户与 StarSeeker 用户按用户名合并去重": "Deduplicated umap_db active users and StarSeeker users by username",
+  "umap_db activity 记录 + Deerflow thread 记录": "umap_db activity records plus Deerflow thread records",
+  "活跃用户数 / 累计注册用户数": "Active users / cumulative registered users",
+  "Deerflow thread 按用户名去重统计": "Deerflow threads deduplicated by username",
+  "每个 Session 的 min(用户提问数, Agent 回答数) 的平均值": "Average min(user questions, Agent answers) per session",
+  "创建会话次数 / 创建会话用户数": "Session creations / session users",
+  "回访用户数 / 创建会话用户数": "Returning users / session users",
+  "统计区间内覆盖至少 2 个自然周的用户数": "Users active across at least two calendar weeks",
+  "统计区间内至少 2 天创建 Session 的用户数": "Users who created sessions on at least 2 days",
+  "统计区间内至少 3 天创建 Session 的用户数": "Users who created sessions on at least 3 days",
+  "创建会话用户在区间内的平均活跃天数": "Average active days among session users in the range",
+  "当前周期": "Current period",
+  "内 Deerflow store 新建 thread 记录": " Deerflow store thread creations",
+};
+
+const originalTextNodes = new WeakMap();
+
+function translateText(value) {
+  return i18nText[value] || value;
+}
+
+function translateWithWhitespace(value) {
+  const leading = value.match(/^\s*/)?.[0] || "";
+  const trailing = value.match(/\s*$/)?.[0] || "";
+  const trimmed = value.trim();
+  return trimmed ? `${leading}${translateText(trimmed)}${trailing}` : value;
+}
+
+function applyTranslations(root = document.body) {
+  const lang = state.language || "zh";
+  document.documentElement.lang = lang === "en" ? "en" : "zh-CN";
+  document.title = lang === "en" ? "MU User Management" : "MU 用户管理";
+  if (els.currentLanguageLabel) {
+    els.currentLanguageLabel.textContent = lang === "en" ? "English" : "中文";
+  }
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const parent = node.parentElement;
+      if (!parent || ["SCRIPT", "STYLE", "TEXTAREA"].includes(parent.tagName)) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    },
+  });
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  nodes.forEach((node) => {
+    if (!originalTextNodes.has(node)) originalTextNodes.set(node, node.nodeValue);
+    if (i18nText[node.nodeValue.trim()]) originalTextNodes.set(node, node.nodeValue);
+    const original = originalTextNodes.get(node);
+    node.nodeValue = lang === "en" ? translateWithWhitespace(original) : original;
+  });
+
+  document.querySelectorAll("[placeholder], [title], [aria-label]").forEach((node) => {
+    ["placeholder", "title", "aria-label"].forEach((attr) => {
+      if (!node.hasAttribute(attr)) return;
+      const originalAttr = `data-original-${attr}`;
+      if (!node.hasAttribute(originalAttr)) node.setAttribute(originalAttr, node.getAttribute(attr));
+      if (i18nText[node.getAttribute(attr)]) node.setAttribute(originalAttr, node.getAttribute(attr));
+      const original = node.getAttribute(originalAttr);
+      node.setAttribute(attr, lang === "en" ? translateText(original) : original);
+    });
+  });
+}
 
 const tableColumns = [
   { key: "id", label: "ID" },
@@ -321,9 +573,17 @@ async function downloadAgentSession(threadId, button) {
 }
 
 function showToast(message) {
-  els.toast.textContent = message;
+  els.toast.textContent = translateText(message);
   els.toast.classList.remove("hidden");
   setTimeout(() => els.toast.classList.add("hidden"), 2400);
+}
+
+function setErrorText(target, message) {
+  if (target) target.textContent = translateText(message || "");
+}
+
+function confirmSendLabel() {
+  return translateText("确认发送");
 }
 
 function showAdmin(user) {
@@ -337,6 +597,7 @@ function showAdmin(user) {
 function showLogin() {
   els.adminView.classList.add("hidden");
   els.loginView.classList.remove("hidden");
+  applyTranslations();
   iconRefresh();
 }
 
@@ -369,6 +630,7 @@ function switchView(view) {
     els.pageTitle.textContent = "用户管理";
     els.pageSubtitle.textContent = "搜索、筛选并维护用户账号与权限。";
   }
+  applyTranslations();
 }
 
 function logout(showMessage = true) {
@@ -441,7 +703,7 @@ function cleanPayload(formData, mode) {
 
 function displayValue(value) {
   if (value === null || value === undefined || value === "") return "-";
-  if (typeof value === "boolean") return value ? "是" : "否";
+  if (typeof value === "boolean") return translateText(value ? "是" : "否");
   return escapeHtml(value);
 }
 
@@ -529,12 +791,13 @@ function renderTableHeader() {
     <th>操作</th>
   `;
   iconRefresh();
+  applyTranslations(els.userTableHeader);
 }
 
 function renderMiniRows(target, rows, renderRow, colspan = 2) {
   target.innerHTML = rows.length
     ? rows.map(renderRow).join("")
-    : `<tr><td colspan="${colspan}" class="cell-muted">暂无数据</td></tr>`;
+    : `<tr><td colspan="${colspan}" class="cell-muted">${translateText("暂无数据")}</td></tr>`;
 }
 
 function shiftDateLabel(label, days) {
@@ -573,7 +836,7 @@ function renderMultiSeriesTrendChart(target, legendTarget, definitions, startDat
     }));
     const baseSeries = normalized[0]?.series || [];
     if (!baseSeries.length) {
-      target.innerHTML = '<div class="trend-empty">暂无数据</div>';
+      target.innerHTML = `<div class="trend-empty">${translateText("暂无数据")}</div>`;
       if (legendTarget) legendTarget.innerHTML = "";
       return;
     }
@@ -848,7 +1111,7 @@ function renderDistribution(target, rows, { pieLimit = 8, rankLimit = 10, page =
     .filter((row) => row.count > 0);
   const total = normalized.reduce((sum, row) => sum + row.count, 0);
   if (!total) {
-    target.innerHTML = '<div class="trend-empty">暂无数据</div>';
+    target.innerHTML = `<div class="trend-empty">${translateText("暂无数据")}</div>`;
     return;
   }
 
@@ -1478,6 +1741,7 @@ function renderDashboards() {
   renderMonitorDashboard();
   renderPlatformDashboard();
   renderAgentDashboard();
+  applyTranslations();
 }
 
 function renderColumnMenu() {
@@ -1492,11 +1756,13 @@ function renderColumnMenu() {
       `
     )
     .join("");
+  applyTranslations(els.columnMenu);
 }
 
 function renderTable() {
   const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
-  els.resultSummary.textContent = `${state.total} 个用户`;
+  els.resultSummary.textContent =
+    state.language === "en" ? `${state.total} users` : `${state.total} 个用户`;
   els.pageInfo.textContent = `${state.page} / ${totalPages}`;
   els.prevPage.disabled = state.page <= 1;
   els.nextPage.disabled = state.page >= totalPages;
@@ -1525,6 +1791,9 @@ function renderTable() {
     )
     .join("");
   iconRefresh();
+  applyTranslations(els.userTableHeader);
+  applyTranslations(els.userTableBody);
+  applyTranslations(els.emptyState);
 }
 
 function escapeHtml(value) {
@@ -1582,6 +1851,7 @@ async function loadMonitorDashboard() {
   }
   persistRange("monitor");
   renderMonitorDashboard();
+  applyTranslations();
 }
 
 async function loadPlatformDashboard() {
@@ -1595,6 +1865,7 @@ async function loadPlatformDashboard() {
   }
   persistRange("platform");
   renderPlatformDashboard();
+  applyTranslations();
 }
 
 async function loadAgentDashboard() {
@@ -1610,6 +1881,7 @@ async function loadAgentDashboard() {
   }
   persistRange("agent");
   renderAgentDashboard();
+  applyTranslations();
 }
 
 async function loadAllDashboards() {
@@ -1666,6 +1938,7 @@ function openDialog(user = null) {
   }
 
   els.userDialog.showModal();
+  applyTranslations(els.userDialog);
   iconRefresh();
 }
 
@@ -1695,14 +1968,15 @@ async function submitUserForm(event) {
     els.userDialog.close();
       await Promise.all([loadAllDashboards(), loadUsers()]);
   } catch (err) {
-    els.formError.textContent = err.message;
+    setErrorText(els.formError, err.message);
   }
 }
 
 async function deleteUser(id) {
   const user = state.users.find((item) => String(item.id) === String(id));
   const label = user ? `${user.username} (${user.email || "-"})` : `ID ${id}`;
-  if (!confirm(`确认删除 ${label}？`)) return;
+  const confirmMessage = state.language === "en" ? `Delete ${label}?` : `确认删除 ${label}？`;
+  if (!confirm(confirmMessage)) return;
   await request(`/api/users/${id}`, {
     method: "DELETE",
     headers: authHeaders(),
@@ -1730,11 +2004,13 @@ function openBatchDialog() {
   resetBatchDialog();
   els.batchForm.elements.permissions.value = "research";
   els.batchDialog.showModal();
+  applyTranslations(els.batchDialog);
   iconRefresh();
 }
 
 function renderBatchPreview() {
-  els.batchPreviewSummary.textContent = `${state.batchUsers.length} 个待新增用户`;
+  els.batchPreviewSummary.textContent =
+    state.language === "en" ? `${state.batchUsers.length} users to add` : `${state.batchUsers.length} 个待新增用户`;
   els.batchPreviewBody.innerHTML = state.batchUsers
     .map(
       (user) => `
@@ -1752,12 +2028,18 @@ function renderBatchPreview() {
     .join("");
   els.batchPreviewSection.classList.remove("hidden");
   els.confirmBatchButton.disabled = state.batchUsers.length === 0;
+  applyTranslations(els.batchPreviewSection);
 }
 
 function renderBatchResult(result) {
   const failed = result.failed || [];
-  els.batchResultSummary.textContent = `已插入 ${result.created || 0} 个用户，已发送 ${result.emailed || 0} 封邮件`;
-  els.batchFailureSummary.textContent = failed.length ? `${failed.length} 个用户失败` : "无失败用户";
+  els.batchResultSummary.textContent =
+    state.language === "en"
+      ? `Inserted ${result.created || 0} users, sent ${result.emailed || 0} emails`
+      : `已插入 ${result.created || 0} 个用户，已发送 ${result.emailed || 0} 封邮件`;
+  els.batchFailureSummary.textContent = failed.length
+    ? state.language === "en" ? `${failed.length} users failed` : `${failed.length} 个用户失败`
+    : translateText("无失败用户");
   els.batchFailureWrap.classList.toggle("hidden", failed.length === 0);
   els.batchFailureBody.innerHTML = failed
     .map(
@@ -1765,13 +2047,14 @@ function renderBatchResult(result) {
         <tr>
           <td>${escapeHtml(item.email)}</td>
           <td>${displayValue(item.username)}</td>
-          <td>${item.stage === "insert" ? "插入" : "邮件"}</td>
+          <td>${translateText(item.stage === "insert" ? "插入" : "邮件")}</td>
           <td>${escapeHtml(item.reason)}</td>
         </tr>
       `
     )
     .join("");
   els.batchResultSection.classList.remove("hidden");
+  applyTranslations(els.batchResultSection);
 }
 
 async function previewBatchUsers(event) {
@@ -1799,7 +2082,7 @@ async function previewBatchUsers(event) {
   } catch (err) {
     state.batchUsers = [];
     els.batchPreviewSection.classList.add("hidden");
-    els.batchError.textContent = err.message;
+    setErrorText(els.batchError, err.message);
   } finally {
     els.previewBatchButton.disabled = false;
   }
@@ -1821,7 +2104,7 @@ async function confirmBatchUsers() {
     await Promise.all([loadAllDashboards(), loadUsers()]);
     showToast("批量新增执行完成");
   } catch (err) {
-    els.batchError.textContent = err.message;
+    setErrorText(els.batchError, err.message);
   } finally {
     els.confirmBatchButton.disabled = state.batchUsers.length === 0;
   }
@@ -1838,6 +2121,7 @@ function openMailDialog(user, tempPassword) {
   els.mailUserLabel.textContent = `${state.pendingEmail.username} (${state.pendingEmail.email || "-"})`;
   els.mailPassword.textContent = tempPassword;
   els.mailDialog.showModal();
+  applyTranslations(els.mailDialog);
   iconRefresh();
 }
 
@@ -1874,7 +2158,7 @@ async function confirmSendUserEmail() {
     showToast("临时密码邮件已发送");
     await loadUsers();
   } catch (err) {
-    els.mailError.textContent = err.message;
+    setErrorText(els.mailError, err.message);
   } finally {
     els.confirmMailDialog.disabled = false;
   }
@@ -1912,8 +2196,9 @@ async function openReportDialog() {
   els.reportRecipients.value = "加载中...";
   els.reportRecipients.disabled = true;
   els.confirmReportDialog.disabled = false;
-  els.confirmReportDialog.innerHTML = '<i data-lucide="send"></i>确认发送';
+  els.confirmReportDialog.innerHTML = `<i data-lucide="send"></i>${confirmSendLabel()}`;
   els.reportDialog.showModal();
+  applyTranslations(els.reportDialog);
   iconRefresh();
   try {
     const data = await request("/api/reports/user-permissions/recipients", {
@@ -1922,7 +2207,7 @@ async function openReportDialog() {
     els.reportRecipients.value = (data.recipients || []).join(", ");
   } catch (err) {
     els.reportRecipients.value = "";
-    els.reportError.textContent = err.message;
+    setErrorText(els.reportError, err.message);
   } finally {
     els.reportRecipients.disabled = false;
   }
@@ -1934,11 +2219,11 @@ async function confirmSendReport() {
   try {
     recipients = parseRecipientEmails(els.reportRecipients.value);
   } catch (err) {
-    els.reportError.textContent = err.message;
+    setErrorText(els.reportError, err.message);
     return;
   }
   els.confirmReportDialog.disabled = true;
-  els.confirmReportDialog.innerHTML = '<i data-lucide="loader-circle"></i>发送中';
+  els.confirmReportDialog.innerHTML = `<i data-lucide="loader-circle"></i>${state.language === "en" ? "Sending" : "发送中"}`;
   iconRefresh();
   try {
     await request("/api/reports/user-permissions/send", {
@@ -1949,10 +2234,10 @@ async function confirmSendReport() {
     els.reportDialog.close();
     showToast("统计报告邮件已发送");
   } catch (err) {
-    els.reportError.textContent = err.message;
+    setErrorText(els.reportError, err.message);
   } finally {
     els.confirmReportDialog.disabled = false;
-    els.confirmReportDialog.innerHTML = '<i data-lucide="send"></i>确认发送';
+    els.confirmReportDialog.innerHTML = `<i data-lucide="send"></i>${confirmSendLabel()}`;
     iconRefresh();
   }
 }
@@ -1995,11 +2280,22 @@ els.loginForm.addEventListener("submit", async (event) => {
     showAdmin(data);
     await Promise.all([loadAllDashboards(), loadUsers()]);
   } catch (err) {
-    els.loginError.textContent = err.message;
+    setErrorText(els.loginError, err.message);
   }
 });
 
 els.logoutButton.addEventListener("click", () => logout(true));
+els.languageToggle?.addEventListener("click", () => {
+  state.language = state.language === "en" ? "zh" : "en";
+  localStorage.setItem("mu_user_management_language", state.language);
+  switchView(state.activeView);
+  renderDashboards();
+  renderTableHeader();
+  renderColumnMenu();
+  renderTable();
+  applyTranslations();
+  iconRefresh();
+});
 els.monitorNav.addEventListener("click", () => switchView("monitor"));
 els.platformNav.addEventListener("click", () => switchView("platform"));
 els.agentNav.addEventListener("click", () => switchView("agent"));

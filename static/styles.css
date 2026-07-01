@@ -180,6 +180,36 @@ textarea {
   gap: 10px;
 }
 
+.language-switcher {
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.language-toggle {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-weight: 750;
+  box-shadow: var(--shadow-soft);
+}
+
+.language-toggle:hover {
+  background: #f6f6f7;
+  border-color: #c9cccf;
+}
+
 .nav-group {
   display: grid;
   gap: 8px;

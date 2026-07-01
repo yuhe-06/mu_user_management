@@ -13,6 +13,21 @@ engine = create_engine(
     pool_pre_ping=True,
     pool_recycle=1800,
 )
+platform_engine = create_engine(
+    settings.platform_database_url,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
+platform_read_engine = create_engine(
+    settings.platform_read_database_url,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
+deerflow_engine = create_engine(
+    settings.deerflow_database_url,
+    pool_pre_ping=True,
+    pool_recycle=1800,
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

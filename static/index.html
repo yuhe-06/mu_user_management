@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MU 用户管理</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260601-7" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260701-7" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   </head>
   <body>
@@ -33,111 +33,531 @@
       </section>
 
       <section id="adminView" class="admin-layout hidden">
-        <header class="topbar">
-          <div>
-            <h1>用户管理</h1>
-            <p id="adminName"></p>
+        <aside class="sidebar">
+          <div class="sidebar-brand">
+            <div class="mark">MU</div>
+            <div>
+              <strong>管理后台</strong>
+              <p id="adminName"></p>
+            </div>
           </div>
-          <div class="topbar-actions">
-            <button id="sendReportButton" class="tool-button" title="发送用户权限统计报告">
-              <i data-lucide="mail-check"></i>
-              发送统计报告
+          <nav class="sidebar-nav">
+            <div class="nav-group">
+              <div class="nav-parent">
+                <i data-lucide="bar-chart-3"></i>
+                数据监控
+              </div>
+              <div class="nav-children">
+                <button id="platformNav" class="nav-item nav-child active" type="button" data-view="platform">
+                  <i data-lucide="server-cog"></i>
+                  MU概览
+                </button>
+                <button id="monitorNav" class="nav-item nav-child" type="button" data-view="monitor">
+                  <i data-lucide="layout-dashboard"></i>
+                  用户概览
+                </button>
+                <button id="agentNav" class="nav-item nav-child" type="button" data-view="agent">
+                  <i data-lucide="bot"></i>
+                  StarSeeker概览
+                </button>
+              </div>
+            </div>
+            <button id="managementNav" class="nav-item" type="button" data-view="management">
+              <i data-lucide="users"></i>
+              用户管理
             </button>
-            <button id="logoutButton" class="icon-button" title="退出登录" aria-label="退出登录">
-              <i data-lucide="log-out"></i>
-            </button>
-          </div>
-        </header>
+          </nav>
+        </aside>
 
-        <section class="toolbar">
-          <form id="filterForm" class="filters">
-            <div class="filter-row filter-row-pair">
-              <label>
-                用户名
-                <input name="username" placeholder="搜索用户名" />
-              </label>
-              <label>
-                邮箱
-                <input name="email" placeholder="搜索邮箱" />
-              </label>
+        <div class="content-shell">
+          <header class="topbar">
+            <div>
+              <h1 id="pageTitle">MU概览</h1>
+              <p id="pageSubtitle">查看平台整体用户、活跃与功能使用表现。</p>
             </div>
-            <div class="filter-row filter-row-pair">
-              <label>
-                组织
-                <input name="organization_name" placeholder="搜索组织" />
-              </label>
-              <label>
-                权限
-                <select name="permissions">
-                  <option value="">全部</option>
-                  <option value="common">common</option>
-                  <option value="trial">trial</option>
-                  <option value="research">research</option>
-                  <option value="explorer">explorer</option>
-                  <option value="team">team</option>
-                  <option value="enterprise1">enterprise1</option>
-                  <option value="enterprise2">enterprise2</option>
-                  <option value="enterprise3">enterprise3</option>
-                  <option value="joint">joint</option>
-                  <option value="admin">admin</option>
-                </select>
-              </label>
+            <div id="topbarActions" class="topbar-actions hidden">
+              <button id="sendReportButton" class="tool-button" title="发送用户权限统计报告">
+                <i data-lucide="mail-check"></i>
+                发送统计报告
+              </button>
+              <button id="logoutButton" class="icon-button" title="退出登录" aria-label="退出登录">
+                <i data-lucide="log-out"></i>
+              </button>
             </div>
-            <div class="filter-row filter-row-actions">
-              <label>
-                关键词
-                <input name="q" placeholder="模糊搜索保留字段" />
-              </label>
-              <div class="filter-actions">
-                <button type="submit" class="tool-button" title="搜索">
-                  <i data-lucide="search"></i>
-                  搜索
-                </button>
-                <button id="batchCreateButton" type="button" class="tool-button">
-                  <i data-lucide="users-round"></i>
-                  批量新增
-                </button>
-                <button id="createButton" type="button" class="primary-button">
-                  <i data-lucide="user-plus"></i>
-                  新增用户
-                </button>
-              </div>
-            </div>
-          </form>
-        </section>
+          </header>
 
-        <section class="table-surface">
-          <div class="table-meta">
-            <span id="resultSummary">0 个用户</span>
-            <div class="table-tools">
-              <div class="column-picker">
-                <button id="columnButton" type="button" class="tool-button" title="展示列">
-                  <i data-lucide="columns-3"></i>
-                  展示列
-                </button>
-                <div id="columnMenu" class="column-menu hidden"></div>
-              </div>
-              <div class="pager">
-                <button id="prevPage" class="icon-button" title="上一页" aria-label="上一页">
-                  <i data-lucide="chevron-left"></i>
-                </button>
-                <span id="pageInfo">1 / 1</span>
-                <button id="nextPage" class="icon-button" title="下一页" aria-label="下一页">
-                  <i data-lucide="chevron-right"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr id="userTableHeader"></tr>
-              </thead>
-              <tbody id="userTableBody"></tbody>
-            </table>
-          </div>
-          <div id="emptyState" class="empty-state hidden">暂无用户</div>
-        </section>
+          <main class="content-main">
+            <section id="monitorView" class="content-view">
+              <section class="monitor-toolbar">
+                <div class="monitor-toolbar-copy">
+                  <h2>统计时间</h2>
+                  <p id="monitorGranularityHint">选择日期区间后，趋势会自动按合适的周期聚合。</p>
+                </div>
+                <div class="monitor-toolbar-controls">
+                  <form id="monitorRangeForm" class="monitor-range-form">
+                    <label class="compact-field">
+                      用户群体
+                      <select id="monitorAudience" name="audience">
+                        <option value="all">全部</option>
+                        <option value="internal">SES 内部</option>
+                        <option value="external">外部客户</option>
+                      </select>
+                    </label>
+                    <label class="compact-field">
+                      开始时间
+                      <input id="monitorStartDate" name="start_date" type="date" />
+                    </label>
+                    <label class="compact-field">
+                      结束时间
+                      <input id="monitorEndDate" name="end_date" type="date" />
+                    </label>
+                    <div class="monitor-range-actions">
+                      <button id="applyMonitorRange" type="submit" class="tool-button">应用</button>
+                      <button id="resetMonitorRange" type="button" class="tool-button">重置</button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+
+              <section class="dashboard-grid">
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>用户概览</h2>
+                      <p>汇总全平台使用情况：基础数据来自 `umap_db`，StarSeeker 数据来自 Deerflow `store`。</p>
+                    </div>
+                  </div>
+                  <div id="overviewCards" class="overview-cards"></div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>趋势</h2>
+                      <p>按单日查看七项用户指标变化；暂无可靠数据源的指标保留定义但不展示虚构数值。</p>
+                    </div>
+                  </div>
+                  <div class="trend-chart-card trend-chart-card-wide">
+                    <div class="panel-title">
+                      <h3>用户指标趋势</h3>
+                    </div>
+                    <div id="combinedTrendLegend" class="trend-legend"></div>
+                    <div id="combinedTrendChart" class="trend-chart trend-chart-large"></div>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>用户结构</h2>
+                      <p>统计截至所选区间最后一天的累计有效用户，与注册用户总数保持一致。</p>
+                    </div>
+                  </div>
+                  <div class="distribution-grid">
+                    <section class="distribution-panel">
+                      <div class="panel-title"><h3>用户角色</h3></div>
+                      <div id="roleDistribution" class="distribution-content"></div>
+                    </section>
+                    <section class="distribution-panel">
+                      <div class="panel-title"><h3>用户组织</h3></div>
+                      <div id="organizationDistribution" class="distribution-content"></div>
+                    </section>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>热门调用接口与活跃用户</h2>
+                      <p>按原始调用接口统计访问次数，并展示当前用户群体筛选下的活跃用户。</p>
+                    </div>
+                  </div>
+                  <div class="insight-grid insight-grid-wide">
+                    <section class="insight-panel">
+                      <div class="panel-title">
+                        <h3>热门调用接口</h3>
+                      </div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>调用接口</th>
+                              <th>次数</th>
+                            </tr>
+                          </thead>
+                          <tbody id="topEndpointsBody"></tbody>
+                        </table>
+                      </div>
+                      <div class="agent-table-pager">
+                        <span id="monitorEndpointPageInfo">1 / 1</span>
+                        <div><button id="monitorEndpointPrev" type="button" class="tool-button">上一页</button><button id="monitorEndpointNext" type="button" class="tool-button">下一页</button></div>
+                      </div>
+                    </section>
+                    <section class="insight-panel">
+                      <div class="panel-title">
+                        <h3>活跃用户</h3>
+                      </div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>用户</th>
+                              <th>组织</th>
+                              <th>行为次数</th>
+                            </tr>
+                          </thead>
+                          <tbody id="topUsersBody"></tbody>
+                        </table>
+                      </div>
+                      <div class="agent-table-pager">
+                        <span id="monitorUserPageInfo">1 / 1</span>
+                        <div><button id="monitorUserPrev" type="button" class="tool-button">上一页</button><button id="monitorUserNext" type="button" class="tool-button">下一页</button></div>
+                      </div>
+                    </section>
+                  </div>
+                </article>
+              </section>
+            </section>
+
+            <section id="platformView" class="content-view hidden">
+              <section class="monitor-toolbar">
+                <div class="monitor-toolbar-copy">
+                  <h2>统计时间</h2>
+                  <p id="platformGranularityHint">选择 MU 概览的日期区间后，平台概览和功能使用会独立刷新。</p>
+                </div>
+                <div class="monitor-toolbar-controls">
+                  <form id="platformRangeForm" class="monitor-range-form">
+                    <label class="compact-field">
+                      用户群体
+                      <select id="platformAudience" name="audience">
+                        <option value="all">全部</option>
+                        <option value="internal">SES 内部</option>
+                        <option value="external">外部客户</option>
+                      </select>
+                    </label>
+                    <label class="compact-field">
+                      开始时间
+                      <input id="platformStartDate" name="start_date" type="date" />
+                    </label>
+                    <label class="compact-field">
+                      结束时间
+                      <input id="platformEndDate" name="end_date" type="date" />
+                    </label>
+                    <div class="monitor-range-actions">
+                      <button id="applyPlatformRange" type="submit" class="tool-button">应用</button>
+                      <button id="resetPlatformRange" type="button" class="tool-button">重置</button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+
+              <section class="dashboard-grid">
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>MU概览</h2>
+                      <p>注册数据来自 `umap_db`；活跃数据覆盖全平台，并合并 Deerflow StarSeeker Session。</p>
+                    </div>
+                  </div>
+                  <div id="platformOverviewCards" class="overview-cards overview-cards-platform"></div>
+                  <div class="trend-chart-card trend-chart-card-wide">
+                    <div class="panel-title">
+                      <h3>平台指标趋势</h3>
+                    </div>
+                    <p class="panel-note">按单日展示注册、登录与活跃指标变化；登录相关指标当前暂无真实事件源。</p>
+                    <div id="platformTrendLegend" class="trend-legend"></div>
+                    <div id="platformTrendChart" class="trend-chart"></div>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>功能使用</h2>
+                      <p>普通功能来自 `umap_db.activity`；StarSeeker 来自 Deerflow `store`，一条 thread 计一次调用。</p>
+                    </div>
+                  </div>
+                  <div id="featureUsageCards" class="overview-cards overview-cards-feature"></div>
+                  <section class="insight-panel feature-usage-panel">
+                    <div class="mini-table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>功能</th>
+                            <th>调用次数</th>
+                            <th>调用用户数</th>
+                            <th>人均调用次数</th>
+                            <th>日均调用次数</th>
+                          </tr>
+                        </thead>
+                        <tbody id="featureUsageBody"></tbody>
+                      </table>
+                    </div>
+                  </section>
+                  <section class="feature-trend-section">
+                    <div class="panel-title">
+                      <h3>功能按天趋势</h3>
+                    </div>
+                    <div id="featureTrendGrid" class="feature-trend-grid"></div>
+                  </section>
+                </article>
+
+              </section>
+            </section>
+
+            <section id="agentView" class="content-view hidden">
+              <section class="monitor-toolbar">
+                <div class="monitor-toolbar-copy">
+                  <h2>统计时间</h2>
+                  <p id="agentGranularityHint">数据来源为 `deerflow_prod`，切换日期区间后会独立刷新 Agent 监控。</p>
+                </div>
+                <div class="monitor-toolbar-controls">
+                  <form id="agentRangeForm" class="monitor-range-form">
+                    <label class="compact-field">
+                      用户群体
+                      <select id="agentAudience" name="audience">
+                        <option value="all">全部</option>
+                        <option value="internal">SES 内部</option>
+                        <option value="external">外部客户</option>
+                      </select>
+                    </label>
+                    <label class="compact-field">
+                      开始时间
+                      <input id="agentStartDate" name="start_date" type="date" />
+                    </label>
+                    <label class="compact-field">
+                      结束时间
+                      <input id="agentEndDate" name="end_date" type="date" />
+                    </label>
+                    <div class="monitor-range-actions">
+                      <button id="applyAgentRange" type="submit" class="tool-button">应用</button>
+                      <button id="resetAgentRange" type="button" class="tool-button">重置</button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+
+              <section class="dashboard-grid">
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>Agent 使用概览</h2>
+                      <p>会话来自 Deerflow `store`；轮数由 checkpoint 消息中的用户提问与 Agent 回答配对统计。</p>
+                    </div>
+                  </div>
+                  <div id="agentUsageCards" class="overview-cards overview-cards-compact"></div>
+                  <div class="trend-chart-card trend-chart-card-wide agent-trend-card">
+                    <div class="panel-title">
+                      <h3>创建会话次数 / 创建会话用户数趋势</h3>
+                    </div>
+                    <div id="agentTrendLegend" class="trend-legend"></div>
+                    <div id="agentTrendChart" class="trend-chart"></div>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>使用用户分布</h2>
+                      <p>按所选时间段内创建的 Agent Session，分别观察用户与组织的使用量占比和排名。</p>
+                    </div>
+                  </div>
+                  <div class="distribution-grid">
+                    <section class="distribution-panel">
+                      <div class="panel-title"><h3>用户使用分布</h3></div>
+                      <div id="agentUserDistribution" class="distribution-content"></div>
+                    </section>
+                    <section class="distribution-panel">
+                      <div class="panel-title"><h3>组织使用分布</h3></div>
+                      <div id="agentOrganizationDistribution" class="distribution-content"></div>
+                    </section>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>留存与粘性分析</h2>
+                      <p>基于所选时间段内创建 Session 的用户，观察回访、跨周活跃与多日使用情况。</p>
+                    </div>
+                  </div>
+                  <div id="agentRetentionCards" class="overview-cards overview-cards-compact"></div>
+                  <div class="insight-grid insight-grid-wide">
+                    <section class="insight-panel">
+                      <div class="panel-title">
+                        <h3>活跃天数分布</h3>
+                      </div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>活跃天数区间</th>
+                              <th>用户数</th>
+                            </tr>
+                          </thead>
+                          <tbody id="agentStickinessDistributionBody"></tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <section class="insight-panel">
+                      <div class="panel-title">
+                        <h3>高粘性用户列表</h3>
+                      </div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>用户名</th>
+                              <th>组织</th>
+                              <th>活跃天数</th>
+                              <th>活跃周数</th>
+                              <th>创建会话次数</th>
+                              <th>最近创建时间</th>
+                            </tr>
+                          </thead>
+                          <tbody id="agentStickyUserBody"></tbody>
+                        </table>
+                      </div>
+                      <div class="agent-table-pager">
+                        <span id="agentStickyUserPageInfo">1 / 1</span>
+                        <div><button id="agentStickyUserPrev" type="button" class="tool-button">上一页</button><button id="agentStickyUserNext" type="button" class="tool-button">下一页</button></div>
+                      </div>
+                    </section>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>Agent Session</h2>
+                      <p>浏览统计时间段内的全部用户使用汇总和提问明细，并支持导出完整对话。</p>
+                    </div>
+                  </div>
+                  <div class="agent-session-grid">
+                    <section class="insight-panel agent-session-panel">
+                      <div class="panel-title"><h3>用户使用</h3></div>
+                      <div class="mini-table-wrap agent-session-table-wrap">
+                        <table>
+                          <thead><tr><th>用户名</th><th>组织</th><th>创建会话次数</th><th>最近创建时间</th></tr></thead>
+                          <tbody id="agentUserListBody"></tbody>
+                        </table>
+                      </div>
+                      <div class="agent-table-pager">
+                        <span id="agentUserPageInfo">1 / 1</span>
+                        <div><button id="agentUserPrev" type="button" class="tool-button">上一页</button><button id="agentUserNext" type="button" class="tool-button">下一页</button></div>
+                      </div>
+                    </section>
+                    <section class="insight-panel agent-session-panel">
+                      <div class="panel-title"><h3>提问明细</h3></div>
+                      <div class="mini-table-wrap agent-session-table-wrap">
+                        <table>
+                          <thead><tr><th>用户名</th><th>组织</th><th>Session 名称</th><th>创建时间</th><th>操作</th></tr></thead>
+                          <tbody id="agentUsageBody"></tbody>
+                        </table>
+                      </div>
+                      <div class="agent-table-pager">
+                        <span id="agentSessionPageInfo">1 / 1</span>
+                        <div><button id="agentSessionPrev" type="button" class="tool-button">上一页</button><button id="agentSessionNext" type="button" class="tool-button">下一页</button></div>
+                      </div>
+                    </section>
+                  </div>
+                </article>
+              </section>
+            </section>
+
+            <section id="managementView" class="content-view hidden">
+              <section class="toolbar">
+                <form id="filterForm" class="filters">
+                  <div class="filter-row filter-row-pair">
+                    <label>
+                      用户名
+                      <input name="username" placeholder="搜索用户名" />
+                    </label>
+                    <label>
+                      邮箱
+                      <input name="email" placeholder="搜索邮箱" />
+                    </label>
+                  </div>
+                  <div class="filter-row filter-row-pair">
+                    <label>
+                      组织
+                      <input name="organization_name" placeholder="搜索组织" />
+                    </label>
+                    <label>
+                      权限
+                      <select name="permissions">
+                        <option value="">全部</option>
+                        <option value="common">common</option>
+                        <option value="trial">trial</option>
+                        <option value="research">research</option>
+                        <option value="explorer">explorer</option>
+                        <option value="team">team</option>
+                        <option value="enterprise1">enterprise1</option>
+                        <option value="enterprise2">enterprise2</option>
+                        <option value="enterprise3">enterprise3</option>
+                        <option value="joint">joint</option>
+                        <option value="admin">admin</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="filter-row filter-row-actions">
+                    <label>
+                      关键词
+                      <input name="q" placeholder="模糊搜索保留字段" />
+                    </label>
+                    <div class="filter-actions">
+                      <button type="submit" class="tool-button" title="搜索">
+                        <i data-lucide="search"></i>
+                        搜索
+                      </button>
+                      <button id="batchCreateButton" type="button" class="tool-button">
+                        <i data-lucide="users-round"></i>
+                        批量新增
+                      </button>
+                      <button id="createButton" type="button" class="primary-button">
+                        <i data-lucide="user-plus"></i>
+                        新增用户
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </section>
+
+              <section class="table-surface">
+                <div class="table-meta">
+                  <span id="resultSummary">0 个用户</span>
+                  <div class="table-tools">
+                    <div class="column-picker">
+                      <button id="columnButton" type="button" class="tool-button" title="展示列">
+                        <i data-lucide="columns-3"></i>
+                        展示列
+                      </button>
+                      <div id="columnMenu" class="column-menu hidden"></div>
+                    </div>
+                    <div class="pager">
+                      <button id="prevPage" class="icon-button" title="上一页" aria-label="上一页">
+                        <i data-lucide="chevron-left"></i>
+                      </button>
+                      <span id="pageInfo">1 / 1</span>
+                      <button id="nextPage" class="icon-button" title="下一页" aria-label="下一页">
+                        <i data-lucide="chevron-right"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table>
+                    <thead>
+                      <tr id="userTableHeader"></tr>
+                    </thead>
+                    <tbody id="userTableBody"></tbody>
+                  </table>
+                </div>
+                <div id="emptyState" class="empty-state hidden">暂无用户</div>
+              </section>
+            </section>
+          </main>
+        </div>
       </section>
     </main>
 
@@ -385,7 +805,22 @@
       </section>
     </dialog>
 
+    <dialog id="featureTrendDialog" class="feature-trend-dialog">
+      <section class="dialog-form">
+        <header>
+          <h2 id="featureTrendDialogTitle">功能趋势</h2>
+          <button type="button" id="closeFeatureTrendDialog" class="icon-button" title="关闭" aria-label="关闭">
+            <i data-lucide="x"></i>
+          </button>
+        </header>
+        <div class="feature-trend-dialog-content">
+          <div id="featureTrendDialogLegend" class="trend-legend"></div>
+          <div id="featureTrendDialogChart" class="trend-chart trend-chart-large"></div>
+        </div>
+      </section>
+    </dialog>
+
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=20260601-7"></script>
+    <script src="/static/app.js?v=20260701-14"></script>
   </body>
 </html>

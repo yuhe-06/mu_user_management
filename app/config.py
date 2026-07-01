@@ -10,6 +10,18 @@ load_dotenv()
 
 class Settings(BaseModel):
     database_url: str = os.getenv("DATABASE_URL", "")
+    platform_database_url: str = os.getenv(
+        "PLATFORM_DATABASE_URL",
+        os.getenv("PLATFORM_READ_DATABASE_URL", os.getenv("DATABASE_URL", "")),
+    )
+    platform_read_database_url: str = os.getenv(
+        "PLATFORM_READ_DATABASE_URL",
+        os.getenv("PLATFORM_DATABASE_URL", os.getenv("DATABASE_URL", "")),
+    )
+    deerflow_database_url: str = os.getenv(
+        "DEERFLOW_DATABASE_URL",
+        "",
+    )
     secret_key: str = os.getenv("SECRET_KEY", "change-me-in-production")
     algorithm: str = os.getenv("ALGORITHM", "HS256")
     access_token_expire_minutes: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "720"))

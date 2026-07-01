@@ -40,9 +40,28 @@ docker compose up -d --build
 docker compose down
 ```
 
+## Render 公网部署
+
+项目已提供 `render.yaml` 和 `Dockerfile`，可以在 Render 上从 GitHub 仓库直接部署成公网可访问的 Web Service。
+
+1. 打开 Render Dashboard，选择 `New` -> `Blueprint`。
+2. 连接 GitHub 仓库 `yuhe-06/mu_user_management`。
+3. Render 会读取 `render.yaml` 并创建 `mu-user-management` 服务。
+4. 在 Render 服务的 `Environment` 页面填写这些私密变量：
+   - `DATABASE_URL`
+   - `PLATFORM_READ_DATABASE_URL`
+   - `DEERFLOW_DATABASE_URL`
+   - `SMTP_USER`
+   - `SMTP_PASS`
+5. 部署完成后，Render 会生成类似 `https://mu-user-management.onrender.com` 的公网链接。
+
+说明：系统前端和 API 同源部署，通常不需要额外配置 `CORS_ORIGINS`。如果后续改为前后端分离，再把前端域名加入 `CORS_ORIGINS`。
+
 ## 环境变量
 
 - `DATABASE_URL`：PostgreSQL 连接串，指向包含 `public.users` 的数据库。
+- `PLATFORM_READ_DATABASE_URL`：平台监控读取 `umap_db` 的只读连接串。
+- `DEERFLOW_DATABASE_URL`：StarSeeker / Agent 监控读取 Deerflow `store` 和 `checkpoint_writes` 的连接串。
 - `SECRET_KEY`：JWT 签名密钥，生产环境必须替换为长随机字符串。
 - `ALGORITHM`：JWT 算法，默认 `HS256`。
 - `ACCESS_TOKEN_EXPIRE_MINUTES`：管理端登录有效期，默认 720 分钟。

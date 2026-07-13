@@ -8,9 +8,19 @@ const state = {
   platformEndDate: localStorage.getItem("mu_user_management_platform_end_date") || "",
   agentStartDate: localStorage.getItem("mu_user_management_agent_start_date") || "",
   agentEndDate: localStorage.getItem("mu_user_management_agent_end_date") || "",
-  monitorAudience: localStorage.getItem("mu_user_management_monitor_audience") || "all",
-  platformAudience: localStorage.getItem("mu_user_management_platform_audience") || "all",
-  agentAudience: localStorage.getItem("mu_user_management_agent_audience") || "all",
+  askStartDate: localStorage.getItem("mu_user_management_ask_start_date") || "",
+  askEndDate: localStorage.getItem("mu_user_management_ask_end_date") || "",
+  searchStartDate: localStorage.getItem("mu_user_management_search_start_date") || "",
+  searchEndDate: localStorage.getItem("mu_user_management_search_end_date") || "",
+  featureStartDate: localStorage.getItem("mu_user_management_feature_start_date") || "",
+  featureEndDate: localStorage.getItem("mu_user_management_feature_end_date") || "",
+  monitorAudience: localStorage.getItem("mu_user_management_monitor_audience") || "external",
+  platformAudience: localStorage.getItem("mu_user_management_platform_audience") || "external",
+  agentAudience: localStorage.getItem("mu_user_management_agent_audience") || "external",
+  askAudience: localStorage.getItem("mu_user_management_ask_audience") || "external",
+  searchAudience: localStorage.getItem("mu_user_management_search_audience") || "external",
+  featureAudience: localStorage.getItem("mu_user_management_feature_audience") || "external",
+  featureMixMetric: localStorage.getItem("mu_user_management_feature_mix_metric") || "calls",
   page: 1,
   pageSize: 20,
   total: 0,
@@ -19,9 +29,13 @@ const state = {
   monitorDashboard: null,
   platformDashboard: null,
   agentDashboard: null,
+  askDashboard: null,
+  searchDashboard: null,
+  featureDashboard: null,
   agentUserPage: 1,
   agentSessionPage: 1,
   agentStickyUserPage: 1,
+  featureDetailPage: 1,
   agentTablePageSize: 10,
   agentStickyUserPageSize: 5,
   monitorOrganizationPage: 1,
@@ -31,6 +45,21 @@ const state = {
   pendingEmail: null,
   batchUsers: [],
 };
+
+function applyAudienceDefaultMigration() {
+  const migrationKey = "mu_user_management_audience_default_v20260706";
+  if (localStorage.getItem(migrationKey)) return;
+  ["monitor", "platform", "agent", "ask", "search", "feature"].forEach((prefix) => {
+    const key = `mu_user_management_${prefix}_audience`;
+    if (!localStorage.getItem(key) || localStorage.getItem(key) === "all") {
+      localStorage.setItem(key, "external");
+      state[`${prefix}Audience`] = "external";
+    }
+  });
+  localStorage.setItem(migrationKey, "1");
+}
+
+applyAudienceDefaultMigration();
 
 const els = {
   loginView: document.querySelector("#loginView"),
@@ -43,11 +72,15 @@ const els = {
   monitorNav: document.querySelector("#monitorNav"),
   platformNav: document.querySelector("#platformNav"),
   agentNav: document.querySelector("#agentNav"),
+  askNav: document.querySelector("#askNav"),
+  searchNav: document.querySelector("#searchNav"),
+  featureNav: document.querySelector("#featureNav"),
   managementNav: document.querySelector("#managementNav"),
   languageToggle: document.querySelector("#languageToggle"),
   currentLanguageLabel: document.querySelector("#currentLanguageLabel"),
   monitorView: document.querySelector("#monitorView"),
   platformView: document.querySelector("#platformView"),
+  featureView: document.querySelector("#featureView"),
   agentView: document.querySelector("#agentView"),
   managementView: document.querySelector("#managementView"),
   monitorGranularityHint: document.querySelector("#monitorGranularityHint"),
@@ -61,12 +94,18 @@ const els = {
   platformEndDate: document.querySelector("#platformEndDate"),
   platformAudience: document.querySelector("#platformAudience"),
   agentGranularityHint: document.querySelector("#agentGranularityHint"),
+  featureGranularityHint: document.querySelector("#featureGranularityHint"),
+  featureRangeForm: document.querySelector("#featureRangeForm"),
+  featureStartDate: document.querySelector("#featureStartDate"),
+  featureEndDate: document.querySelector("#featureEndDate"),
+  featureAudience: document.querySelector("#featureAudience"),
   agentRangeForm: document.querySelector("#agentRangeForm"),
   agentStartDate: document.querySelector("#agentStartDate"),
   agentEndDate: document.querySelector("#agentEndDate"),
   agentAudience: document.querySelector("#agentAudience"),
   resetMonitorRange: document.querySelector("#resetMonitorRange"),
   resetPlatformRange: document.querySelector("#resetPlatformRange"),
+  resetFeatureRange: document.querySelector("#resetFeatureRange"),
   resetAgentRange: document.querySelector("#resetAgentRange"),
   topbarActions: document.querySelector("#topbarActions"),
   sendReportButton: document.querySelector("#sendReportButton"),
@@ -78,12 +117,29 @@ const els = {
   featureUsageCards: document.querySelector("#featureUsageCards"),
   featureUsageBody: document.querySelector("#featureUsageBody"),
   featureTrendGrid: document.querySelector("#featureTrendGrid"),
+  featureOverviewCards: document.querySelector("#featureOverviewCards"),
+  featureMixGrid: document.querySelector("#featureMixGrid"),
+  featureOverviewTrendGrid: document.querySelector("#featureOverviewTrendGrid"),
+  featureTopUsersBody: document.querySelector("#featureTopUsersBody"),
+  featureTopOrganizationsBody: document.querySelector("#featureTopOrganizationsBody"),
+  featureTopEndpointsBody: document.querySelector("#featureTopEndpointsBody"),
+  featureDetailBody: document.querySelector("#featureDetailBody"),
+  featureDetailPageInfo: document.querySelector("#featureDetailPageInfo"),
+  featureDetailPrev: document.querySelector("#featureDetailPrev"),
+  featureDetailNext: document.querySelector("#featureDetailNext"),
   featureTrendDialog: document.querySelector("#featureTrendDialog"),
   featureTrendDialogTitle: document.querySelector("#featureTrendDialogTitle"),
   featureTrendDialogLegend: document.querySelector("#featureTrendDialogLegend"),
   featureTrendDialogChart: document.querySelector("#featureTrendDialogChart"),
   closeFeatureTrendDialog: document.querySelector("#closeFeatureTrendDialog"),
   agentUsageCards: document.querySelector("#agentUsageCards"),
+  agentOverviewTitle: document.querySelector("#agentOverviewTitle"),
+  agentOverviewNote: document.querySelector("#agentOverviewNote"),
+  agentTrendTitle: document.querySelector("#agentTrendTitle"),
+  agentDistributionTitle: document.querySelector("#agentDistributionTitle"),
+  agentDistributionNote: document.querySelector("#agentDistributionNote"),
+  agentSessionTitle: document.querySelector("#agentSessionTitle"),
+  agentSessionNote: document.querySelector("#agentSessionNote"),
   agentRetentionCards: document.querySelector("#agentRetentionCards"),
   agentUsageBody: document.querySelector("#agentUsageBody"),
   agentUserListBody: document.querySelector("#agentUserListBody"),
@@ -180,6 +236,7 @@ const nullableFields = new Set([
 
 const dateTimeFields = new Set(["created_at", "updated_at", "subscribe_start_at", "subscribe_end_at"]);
 const columnStorageKey = "mu_user_management_visible_columns";
+const dashboardRangePrefixes = ["monitor", "platform", "agent", "ask", "search", "feature"];
 
 const i18nText = {
   "用户管理": "User Management",
@@ -189,9 +246,16 @@ const i18nText = {
   "MU概览": "MU Overview",
   "用户概览": "User Overview",
   "StarSeeker概览": "StarSeeker Overview",
+  "Ask概览": "Ask Overview",
+  "search概览": "search Overview",
+  "模型概览": "Model Overview",
   "查看平台整体用户、活跃与功能使用表现。": "View platform users, activity, and feature usage.",
   "查看用户规模、行为活跃度和会话使用情况。": "View user scale, activity, and session usage.",
   "查看 StarSeeker 用户提问 Session 列表和会话创建趋势。": "View StarSeeker question sessions and creation trends.",
+  "查看 Ask 功能调用、使用用户和活跃粘性表现。": "View Ask calls, users, and engagement.",
+  "查看 search 功能调用、使用用户和活跃粘性表现。": "View search calls, users, and engagement.",
+  "查看除 StarSeeker、Ask 和 search 之外的模型调用、使用用户和活跃粘性表现。": "View model calls, users, and engagement excluding StarSeeker, Ask, and search.",
+  "统计除 StarSeeker、Ask 和 search 之外的 MU 模型调用，趋势统一按单日聚合。": "Analyze MU model calls excluding StarSeeker, Ask, and search, aggregated by day.",
   "搜索、筛选并维护用户账号与权限。": "Search, filter, and manage user accounts and permissions.",
   "语言": "Language",
   "中文": "中文",
@@ -235,18 +299,51 @@ const i18nText = {
   "平台指标趋势": "Platform Metrics Trend",
   "按单日展示注册、登录与活跃指标变化；登录相关指标当前暂无真实事件源。": "Shows registration, login, and activity metrics by day. Login metrics currently have no real event source.",
   "功能使用": "Feature Usage",
+  "模型使用总览": "Model Usage Overview",
+  "聚焦 MU 平台模型功能的调用规模、用户覆盖和使用集中度，排除 StarSeeker、Ask 与 search 的独立流量。": "Focus on call scale, user coverage, and concentration for model features, excluding StarSeeker, Ask, and search traffic.",
+  "模型组合": "Model Mix",
+  "查看各模型功能的调用占比、覆盖用户数、人均调用与日均调用。": "Compare call share, user coverage, calls per user, and daily average by model feature.",
+  "模型占比": "Model Share",
+  "按调用次数查看": "By calls",
+  "按用户数查看": "By users",
+  "模型趋势": "Model Trends",
+  "每个模型功能一张趋势图，对比调用次数与调用用户数的日变化。": "One trend chart per model feature, comparing daily calls and calling users.",
+  "使用排行": "Usage Rankings",
+  "从用户、组织和原始接口三个角度定位主要使用来源。": "Identify usage sources by user, organization, and raw endpoint.",
+  "Top 用户": "Top Users",
+  "Top 组织": "Top Organizations",
+  "Top 接口": "Top Endpoints",
+  "调用明细": "Call Details",
+  "按时间倒序展示统计区间内的模型调用记录。": "Show model call records in reverse chronological order.",
+  "时间": "Time",
+  "接口": "Endpoint",
   "普通功能来自 `umap_db.activity`；StarSeeker 来自 Deerflow `store`，一条 thread 计一次调用。": "Standard features come from `umap_db.activity`; StarSeeker comes from Deerflow `store`, with one thread counted as one call.",
   "功能": "Feature",
+  "模型": "Model",
   "调用次数": "Call Count",
+  "用户数": "Users",
   "调用用户数": "Calling Users",
   "人均调用次数": "Calls per User",
   "日均调用次数": "Daily Avg Calls",
   "功能按天趋势": "Daily Feature Trends",
   "数据来源为 `deerflow_prod`，切换日期区间后会独立刷新 Agent 监控。": "Data comes from `deerflow_prod`; changing the date range refreshes Agent monitoring independently.",
   "Agent 使用概览": "Agent Usage Overview",
+  "Ask 使用概览": "Ask Usage Overview",
+  "search 使用概览": "search Usage Overview",
+  "StarSeeker 使用概览": "StarSeeker Usage Overview",
+  "模型使用概览": "Model Usage Overview",
   "会话来自 Deerflow `store`；轮数由 checkpoint 消息中的用户提问与 Agent 回答配对统计。": "Sessions come from Deerflow `store`; rounds are calculated from paired user questions and Agent answers in checkpoint messages.",
+  "调用来自 umap_db.public.activity；/rag 与 /rag-search-literature 相关接口计为 Ask 调用。": "Calls come from umap_db.public.activity; /rag and /rag-search-literature endpoints count as Ask calls.",
+  "调用来自 umap_db.public.activity；/search、/find-friend-with-image 与分子详情相关接口计为 search 调用。": "Calls come from umap_db.public.activity; /search, /find-friend-with-image, and molecule detail endpoints count as search calls.",
+  "调用来自 umap_db.public.activity；仅统计除 StarSeeker、Ask 和 search 之外的模型分类调用。": "Calls come from umap_db.public.activity; only model categories excluding StarSeeker, Ask, and search are counted.",
   "创建会话次数 / 创建会话用户数趋势": "Session Creations / Session Users Trend",
+  "Ask 调用次数 / 调用用户数趋势": "Ask Calls / Calling Users Trend",
+  "search 调用次数 / 调用用户数趋势": "search Calls / Calling Users Trend",
+  "模型调用次数 / 调用用户数趋势": "Model Calls / Calling Users Trend",
   "使用用户分布": "Usage Distribution",
+  "Ask 使用用户分布": "Ask User Distribution",
+  "StarSeeker 使用用户分布": "StarSeeker User Distribution",
+  "模型使用用户分布": "Model User Distribution",
   "按所选时间段内创建的 Agent Session，分别观察用户与组织的使用量占比和排名。": "Analyze user and organization shares and rankings based on Agent sessions created in the selected range.",
   "用户使用分布": "User Usage Distribution",
   "组织使用分布": "Organization Usage Distribution",
@@ -262,6 +359,12 @@ const i18nText = {
   "创建会话次数": "Session Creations",
   "最近创建时间": "Last Created",
   "浏览统计时间段内的全部用户使用汇总和提问明细，并支持导出完整对话。": "Browse user usage summaries and question details in the selected range, with full conversation export.",
+  "Ask 调用明细": "Ask Call Details",
+  "search 调用明细": "search Call Details",
+  "模型调用明细": "Model Call Details",
+  "浏览统计时间段内的 Ask 调用用户汇总和调用明细。": "Browse Ask user summaries and call details in the selected range.",
+  "浏览统计时间段内的 search 调用用户汇总和调用明细。": "Browse search user summaries and call details in the selected range.",
+  "浏览统计时间段内的模型调用用户汇总和调用明细。": "Browse model user summaries and call details in the selected range.",
   "用户使用": "User Usage",
   "提问明细": "Question Details",
   "Session 名称": "Session Name",
@@ -309,6 +412,15 @@ const i18nText = {
   "平台活跃率（%）": "Platform Active Rate (%)",
   "平台活跃率": "Platform Active Rate",
   "创建会话用户数": "Session Users",
+  "Ask 调用次数": "Ask Calls",
+  "search 调用次数": "search Calls",
+  "模型调用次数": "Model Calls",
+  "总调用次数": "Total Calls",
+  "覆盖模型数": "Active Model Count",
+  "最高频模型": "Top Model",
+  "日均调用次数": "Daily Avg Calls",
+  "调用用户数": "Calling Users",
+  "人均调用次数": "Calls per User",
   "平均会话轮数": "Avg Session Rounds",
   "人均创建会话次数": "Sessions per User",
   "回访用户数": "Returning Users",
@@ -369,8 +481,14 @@ const i18nText = {
   "umap_db activity 记录 + Deerflow thread 记录": "umap_db activity records plus Deerflow thread records",
   "活跃用户数 / 累计注册用户数": "Active users / cumulative registered users",
   "Deerflow thread 按用户名去重统计": "Deerflow threads deduplicated by username",
+  "Ask 调用按用户去重统计": "Ask calls deduplicated by user",
+  "search 调用按用户去重统计": "search calls deduplicated by user",
+  "模型调用按用户去重统计": "Model calls deduplicated by user",
   "每个 Session 的 min(用户提问数, Agent 回答数) 的平均值": "Average min(user questions, Agent answers) per session",
   "创建会话次数 / 创建会话用户数": "Session creations / session users",
+  "Ask 调用次数 / 调用用户数": "Ask calls / calling users",
+  "search 调用次数 / 调用用户数": "search calls / calling users",
+  "模型调用次数 / 调用用户数": "Model calls / calling users",
   "回访用户数 / 创建会话用户数": "Returning users / session users",
   "统计区间内覆盖至少 2 个自然周的用户数": "Users active across at least two calendar weeks",
   "统计区间内至少 2 天创建 Session 的用户数": "Users who created sessions on at least 2 days",
@@ -468,6 +586,19 @@ function getDefaultMonitorRange() {
   };
 }
 
+function applyDashboardRangeDefaultMigration() {
+  const migrationKey = "mu_user_management_range_default_v20260707";
+  if (localStorage.getItem(migrationKey)) return;
+  const range = getDefaultMonitorRange();
+  dashboardRangePrefixes.forEach((prefix) => {
+    state[`${prefix}StartDate`] = range.start;
+    state[`${prefix}EndDate`] = range.end;
+    localStorage.setItem(`mu_user_management_${prefix}_start_date`, range.start);
+    localStorage.setItem(`mu_user_management_${prefix}_end_date`, range.end);
+  });
+  localStorage.setItem(migrationKey, "1");
+}
+
 function ensureRange(prefix, forceReset = false) {
   const startKey = `${prefix}StartDate`;
   const endKey = `${prefix}EndDate`;
@@ -485,13 +616,27 @@ function ensureRange(prefix, forceReset = false) {
     endInput.value = state[endKey];
   }
   const audienceInput = els[`${prefix}Audience`];
-  if (audienceInput) audienceInput.value = state[`${prefix}Audience`] || "all";
+  if (audienceInput) audienceInput.value = state[`${prefix}Audience`] || "external";
 }
 
 function persistRange(prefix) {
   localStorage.setItem(`mu_user_management_${prefix}_start_date`, state[`${prefix}StartDate`]);
   localStorage.setItem(`mu_user_management_${prefix}_end_date`, state[`${prefix}EndDate`]);
-  localStorage.setItem(`mu_user_management_${prefix}_audience`, state[`${prefix}Audience`] || "all");
+  localStorage.setItem(`mu_user_management_${prefix}_audience`, state[`${prefix}Audience`] || "external");
+}
+
+function activeAgentPrefix() {
+  if (state.activeView === "ask") return "ask";
+  if (state.activeView === "search") return "search";
+  if (state.activeView === "feature") return "feature";
+  return "agent";
+}
+
+function syncAgentRangeInputs(prefix = activeAgentPrefix()) {
+  ensureRange(prefix);
+  if (els.agentStartDate) els.agentStartDate.value = state[`${prefix}StartDate`];
+  if (els.agentEndDate) els.agentEndDate.value = state[`${prefix}EndDate`];
+  if (els.agentAudience) els.agentAudience.value = state[`${prefix}Audience`] || "external";
 }
 
 function iconRefresh() {
@@ -603,18 +748,37 @@ function showLogin() {
 
 function switchView(view) {
   state.activeView =
-    view === "management" ? "management" : view === "platform" ? "platform" : view === "agent" ? "agent" : "monitor";
+    view === "management"
+      ? "management"
+      : view === "platform"
+        ? "platform"
+        : view === "agent"
+          ? "agent"
+          : view === "ask"
+            ? "ask"
+            : view === "search"
+              ? "search"
+              : view === "feature"
+                ? "feature"
+                : "monitor";
   const monitor = state.activeView === "monitor";
   const platform = state.activeView === "platform";
   const agent = state.activeView === "agent";
+  const ask = state.activeView === "ask";
+  const search = state.activeView === "search";
+  const feature = state.activeView === "feature";
   const management = state.activeView === "management";
   els.monitorView.classList.toggle("hidden", !monitor);
   els.platformView.classList.toggle("hidden", !platform);
-  els.agentView.classList.toggle("hidden", !agent);
+  els.featureView?.classList.toggle("hidden", !feature);
+  els.agentView.classList.toggle("hidden", !(agent || ask || search));
   els.managementView.classList.toggle("hidden", !management);
   els.monitorNav.classList.toggle("active", monitor);
   els.platformNav.classList.toggle("active", platform);
   els.agentNav.classList.toggle("active", agent);
+  els.askNav?.classList.toggle("active", ask);
+  els.searchNav?.classList.toggle("active", search);
+  els.featureNav?.classList.toggle("active", feature);
   els.managementNav.classList.toggle("active", management);
   els.topbarActions?.classList.toggle("hidden", !management);
   if (monitor) {
@@ -626,6 +790,23 @@ function switchView(view) {
   } else if (agent) {
     els.pageTitle.textContent = "StarSeeker概览";
     els.pageSubtitle.textContent = "查看 StarSeeker 用户提问 Session 列表和会话创建趋势。";
+    syncAgentRangeInputs("agent");
+    renderAgentDashboard();
+  } else if (ask) {
+    els.pageTitle.textContent = "Ask概览";
+    els.pageSubtitle.textContent = "查看 Ask 功能调用、使用用户和活跃粘性表现。";
+    syncAgentRangeInputs("ask");
+    renderAgentDashboard();
+  } else if (search) {
+    els.pageTitle.textContent = "search概览";
+    els.pageSubtitle.textContent = "查看 search 功能调用、使用用户和活跃粘性表现。";
+    syncAgentRangeInputs("search");
+    renderAgentDashboard();
+  } else if (feature) {
+    els.pageTitle.textContent = "模型概览";
+    els.pageSubtitle.textContent = "查看除 StarSeeker、Ask 和 search 之外的模型调用、使用用户和活跃粘性表现。";
+    ensureRange("feature");
+    renderFeatureDashboard();
   } else {
     els.pageTitle.textContent = "用户管理";
     els.pageSubtitle.textContent = "搜索、筛选并维护用户账号与权限。";
@@ -735,6 +916,7 @@ function getDaySpan(startDate, endDate) {
   const [ey, em, ed] = String(endDate).split("-").map(Number);
   const start = new Date(sy, sm - 1, sd);
   const end = new Date(ey, em - 1, ed);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 1;
   const diff = Math.round((end - start) / 86400000) + 1;
   return Math.max(diff, 1);
 }
@@ -811,9 +993,11 @@ function shiftDateLabel(label, days) {
 }
 
 function buildDailySeries(startDate, endDate, rows, missingValue = 0) {
+  if (!startDate || !endDate) return [];
   const counts = new Map((rows || []).map((row) => [String(row.bucket_start), Number(row.count || 0)]));
   const series = [];
   for (let label = startDate; label <= endDate; label = shiftDateLabel(label, 1)) {
+    if (!label || label.includes("NaN")) break;
     series.push({ label, value: counts.has(label) ? counts.get(label) || 0 : missingValue });
   }
   return series;
@@ -941,7 +1125,8 @@ function renderMultiSeriesTrendChart(target, legendTarget, definitions, startDat
           .join("")}
         ${baseSeries
           .map((point, index) => {
-            const startX = index === 0 ? padding.left : point.x - hoverWidth / 2;
+            const chartPoint = allPointSets[0].points[index];
+            const startX = index === 0 ? padding.left : chartPoint.x - hoverWidth / 2;
             const rectWidth = baseSeries.length === 1 ? chartWidth : index === baseSeries.length - 1 ? padding.left + chartWidth - startX : hoverWidth;
             return `
               <rect
@@ -983,7 +1168,7 @@ function renderMultiSeriesTrendChart(target, legendTarget, definitions, startDat
           color: item.color,
           point: item.points[index],
         }));
-      const anchorPoint = baseSeries[index];
+      const anchorPoint = allPointSets[0].points[index];
       if (!anchorPoint) return;
 
       hoverLine.setAttribute("x1", String(anchorPoint.x));
@@ -1104,6 +1289,60 @@ function renderCombinedTrendChart(target, legendTarget, trendSeries, startDate, 
 
 const distributionColors = ["#126e7a", "#d26a43", "#3d7af0", "#0f9f6e", "#d6a431", "#6d5bd0", "#d14f73", "#78909c"];
 
+function renderFeatureMixPie(rows, metric) {
+  const metricKey = metric === "users" ? "user_count" : "call_count";
+  const metricLabel = metric === "users" ? "用户数" : "调用次数";
+  const normalized = (rows || [])
+    .map((row) => ({
+      label: row.feature_name || "-",
+      count: Number(row[metricKey] || 0),
+    }))
+    .filter((row) => row.count > 0);
+  const total = normalized.reduce((sum, row) => sum + row.count, 0);
+  if (!total) {
+    return `<div class="trend-empty">${translateText("暂无数据")}</div>`;
+  }
+  let cursor = 0;
+  const segments = normalized.map((row, index) => {
+    const start = cursor;
+    cursor += (row.count / total) * 360;
+    return `${distributionColors[index % distributionColors.length]} ${start}deg ${cursor}deg`;
+  });
+  return `
+    <div class="feature-mix-pie-card">
+      <div class="feature-mix-pie-head">
+        <div>
+          <strong>模型占比</strong>
+          <span>按${escapeHtml(metricLabel)}查看</span>
+        </div>
+        <div class="feature-mix-toggle" role="group" aria-label="模型组合指标切换">
+          <button type="button" class="feature-mix-toggle-button ${metric === "calls" ? "active" : ""}" data-metric="calls">调用次数</button>
+          <button type="button" class="feature-mix-toggle-button ${metric === "users" ? "active" : ""}" data-metric="users">用户数</button>
+        </div>
+      </div>
+      <div class="feature-mix-pie-body">
+        <div class="distribution-pie feature-mix-pie" style="background: conic-gradient(${segments.join(", ")})">
+          <div class="distribution-pie-center"><strong>${formatCount(total)}</strong><span>${escapeHtml(metricLabel)}</span></div>
+        </div>
+        <div class="feature-mix-pie-legend">
+          ${normalized
+            .slice(0, 8)
+            .map(
+              (row, index) => `
+                <div>
+                  <span class="distribution-dot" style="background:${distributionColors[index % distributionColors.length]}"></span>
+                  <span>${escapeHtml(row.label)}</span>
+                  <strong>${formatPercent(row.count, total)}</strong>
+                </div>
+              `
+            )
+            .join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderDistribution(target, rows, { pieLimit = 8, rankLimit = 10, page = 1, onPageChange = null } = {}) {
   if (!target) return;
   const normalized = (rows || [])
@@ -1200,9 +1439,9 @@ function renderPlatformTrendChart(target, legendTarget, trendSeries, startDate, 
   );
 }
 
-function renderFeatureUsageTrendGrid(target, trendRows, summaryRows, startDate, endDate) {
+function renderFeatureUsageTrendGrid(target, trendRows, summaryRows, startDate, endDate, featureNamesOverride = null) {
   if (!target) return;
-  const featureNames = [
+  const featureNames = featureNamesOverride || [
     "StarSeeker",
     "Ask",
     "search",
@@ -1212,6 +1451,10 @@ function renderFeatureUsageTrendGrid(target, trendRows, summaryRows, startDate, 
     "electrode forward design",
     "electrode inverse design",
   ];
+  if (!featureNames.length) {
+    target.innerHTML = `<div class="trend-empty">${translateText("暂无数据")}</div>`;
+    return;
+  }
   const grouped = new Map();
   for (const row of trendRows || []) {
     const key = row.feature_name;
@@ -1520,8 +1763,215 @@ function renderPlatformDashboard() {
   );
 }
 
+function renderFeatureLoading() {
+  if (els.featureGranularityHint) {
+    els.featureGranularityHint.textContent = "正在加载模型概览数据...";
+  }
+  if (els.featureOverviewCards) {
+    els.featureOverviewCards.innerHTML = `
+      <article class="feature-kpi-card"><span>加载中</span><strong>-</strong><small>正在读取模型调用数据</small></article>
+      <article class="feature-kpi-card"><span>加载中</span><strong>-</strong><small>正在统计调用用户</small></article>
+      <article class="feature-kpi-card"><span>加载中</span><strong>-</strong><small>正在汇总功能组合</small></article>
+    `;
+  }
+  if (els.featureMixGrid) els.featureMixGrid.innerHTML = `<div class="trend-empty">加载中...</div>`;
+  if (els.featureOverviewTrendGrid) els.featureOverviewTrendGrid.innerHTML = `<div class="trend-empty">加载中...</div>`;
+  renderMiniRows(els.featureTopUsersBody, [], () => "", 3);
+  renderMiniRows(els.featureTopOrganizationsBody, [], () => "", 3);
+  renderMiniRows(els.featureTopEndpointsBody, [], () => "", 3);
+  renderMiniRows(els.featureDetailBody, [], () => "", 5);
+}
+
+function renderFeatureError(message) {
+  const safeMessage = escapeHtml(message || "模型概览加载失败，请稍后重试");
+  if (els.featureGranularityHint) {
+    els.featureGranularityHint.textContent = "模型概览加载失败。";
+  }
+  if (els.featureOverviewCards) {
+    els.featureOverviewCards.innerHTML = `
+      <article class="feature-kpi-card">
+        <span>加载失败</span>
+        <strong>-</strong>
+        <small>${safeMessage}</small>
+      </article>
+    `;
+  }
+  if (els.featureMixGrid) els.featureMixGrid.innerHTML = `<div class="trend-empty">${safeMessage}</div>`;
+  if (els.featureOverviewTrendGrid) els.featureOverviewTrendGrid.innerHTML = `<div class="trend-empty">${safeMessage}</div>`;
+  renderMiniRows(els.featureTopUsersBody, [], () => "", 3);
+  renderMiniRows(els.featureTopOrganizationsBody, [], () => "", 3);
+  renderMiniRows(els.featureTopEndpointsBody, [], () => "", 3);
+  renderMiniRows(els.featureDetailBody, [], () => "", 5);
+}
+
+function renderFeatureDashboard() {
+  const dashboard = state.featureDashboard;
+  if (!dashboard) {
+    if (els.featureOverviewCards) els.featureOverviewCards.innerHTML = "";
+    if (els.featureMixGrid) els.featureMixGrid.innerHTML = "";
+    if (els.featureOverviewTrendGrid) els.featureOverviewTrendGrid.innerHTML = "";
+    renderMiniRows(els.featureTopUsersBody, [], () => "", 3);
+    renderMiniRows(els.featureTopOrganizationsBody, [], () => "", 3);
+    renderMiniRows(els.featureTopEndpointsBody, [], () => "", 3);
+    renderMiniRows(els.featureDetailBody, [], () => "", 5);
+    return;
+  }
+
+  const meta = dashboard.meta || {};
+  ensureRange("feature");
+  if (els.featureGranularityHint) {
+    els.featureGranularityHint.textContent =
+      meta.range_summary || "统计除 StarSeeker、Ask 和 search 之外的 MU 模型调用，趋势统一按单日聚合。";
+  }
+
+  const overview = dashboard.agent_usage_overview || {};
+  const summaryRows = dashboard.feature_usage_summary || [];
+  const totalCalls = Number(overview.session_creations || 0);
+  const totalUsers = Number(overview.session_users || 0);
+  const featureCount = summaryRows.filter((row) => Number(row.call_count || 0) > 0).length;
+  const daySpan = getDaySpan(meta.start_date, meta.end_date);
+  const leadingFeature = summaryRows[0]?.feature_name || "-";
+  if (els.featureOverviewCards) {
+    els.featureOverviewCards.innerHTML = [
+      ["总调用次数", formatCount(totalCalls), "统计区间内非 StarSeeker / Ask / search 模型调用总量"],
+      ["调用用户数", formatCount(totalUsers), "至少调用过一次这些模型功能的去重用户"],
+      ["覆盖模型数", formatCount(featureCount), "统计区间内有调用记录的模型分类数"],
+      ["人均调用次数", formatAverage(totalCalls / Math.max(totalUsers, 1)), "总调用次数 / 调用用户数"],
+      ["日均调用次数", formatAverage(totalCalls / daySpan), "总调用次数 / 统计天数"],
+      ["最高频模型", leadingFeature, "按调用次数排序的第一模型"],
+    ]
+      .map(
+        ([label, value, note]) => `
+          <article class="feature-kpi-card">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+            <small>${escapeHtml(note)}</small>
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  if (els.featureMixGrid) {
+    const maxCalls = Math.max(...summaryRows.map((row) => Number(row.call_count || 0)), 1);
+    const mixCards = summaryRows
+      .map((row) => {
+        const calls = Number(row.call_count || 0);
+        const users = Number(row.user_count || 0);
+        return `
+          <article class="feature-mix-card">
+            <div class="feature-mix-head">
+              <strong>${escapeHtml(row.feature_name || "-")}</strong>
+              <span>${formatPercent(calls, totalCalls)}</span>
+            </div>
+            <div class="feature-mix-bar"><span style="width:${(calls / maxCalls) * 100}%"></span></div>
+            <div class="feature-mix-meta">
+              <span>${formatCount(calls)} 次调用</span>
+              <span>${formatCount(users)} 位用户</span>
+              <span>人均 ${formatAverage(calls / Math.max(users, 1))}</span>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
+    els.featureMixGrid.innerHTML = summaryRows.length
+      ? `
+        ${renderFeatureMixPie(summaryRows, state.featureMixMetric)}
+        <div class="feature-mix-card-grid">${mixCards}</div>
+      `
+      : `<div class="trend-empty">${translateText("暂无数据")}</div>`;
+    els.featureMixGrid.querySelectorAll(".feature-mix-toggle-button").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.featureMixMetric = button.dataset.metric === "users" ? "users" : "calls";
+        localStorage.setItem("mu_user_management_feature_mix_metric", state.featureMixMetric);
+        renderFeatureDashboard();
+      });
+    });
+  }
+
+  renderFeatureUsageTrendGrid(
+    els.featureOverviewTrendGrid,
+    dashboard.feature_usage_trend || [],
+    summaryRows,
+    meta.start_date,
+    meta.end_date,
+    summaryRows.map((row) => row.feature_name)
+  );
+
+  renderMiniRows(
+    els.featureTopUsersBody,
+    dashboard.feature_top_users || [],
+    (row) => `
+      <tr>
+        <td>${escapeHtml(row.username || "-")}</td>
+        <td>${escapeHtml(row.organization_name || "-")}</td>
+        <td>${formatCount(row.call_count)}</td>
+      </tr>
+    `,
+    3
+  );
+  renderMiniRows(
+    els.featureTopOrganizationsBody,
+    dashboard.agent_organization_distribution || [],
+    (row) => `
+      <tr>
+        <td>${escapeHtml(row.label || "-")}</td>
+        <td>${formatCount(row.count)}</td>
+        <td>${formatPercent(row.count, totalCalls)}</td>
+      </tr>
+    `,
+    3
+  );
+  renderMiniRows(
+    els.featureTopEndpointsBody,
+    dashboard.feature_top_endpoints || [],
+    (row) => `
+      <tr>
+        <td title="${escapeHtml(row.endpoint || "-")}">${escapeHtml(row.endpoint || "-")}</td>
+        <td>${escapeHtml(row.feature_name || "-")}</td>
+        <td>${formatCount(row.call_count)}</td>
+      </tr>
+    `,
+    3
+  );
+
+  const detailRows = dashboard.agent_usage || [];
+  const totalPages = Math.max(1, Math.ceil(detailRows.length / state.agentTablePageSize));
+  state.featureDetailPage = Math.min(Math.max(state.featureDetailPage, 1), totalPages);
+  const visibleRows = detailRows.slice(
+    (state.featureDetailPage - 1) * state.agentTablePageSize,
+    state.featureDetailPage * state.agentTablePageSize
+  );
+  renderMiniRows(
+    els.featureDetailBody,
+    visibleRows,
+    (row) => `
+      <tr>
+        <td>${escapeHtml(formatDate(row.created_at))}</td>
+        <td>${escapeHtml(row.feature_name || "-")}</td>
+        <td title="${escapeHtml(row.endpoint || "-")}">${escapeHtml(row.endpoint || "-")}</td>
+        <td>${escapeHtml(row.username || "-")}</td>
+        <td>${escapeHtml(row.organization_name || "-")}</td>
+      </tr>
+    `,
+    5
+  );
+  if (els.featureDetailPageInfo) els.featureDetailPageInfo.textContent = `${state.featureDetailPage} / ${totalPages} · ${detailRows.length} 条调用`;
+  if (els.featureDetailPrev) els.featureDetailPrev.disabled = state.featureDetailPage <= 1;
+  if (els.featureDetailNext) els.featureDetailNext.disabled = state.featureDetailPage >= totalPages;
+  applyTranslations(els.featureView);
+}
+
 function renderAgentDashboard() {
-  const dashboard = state.agentDashboard;
+  const isAsk = state.activeView === "ask";
+  const isSearch = state.activeView === "search";
+  const isFeature = state.activeView === "feature";
+  const dashboard = isAsk ? state.askDashboard : isSearch ? state.searchDashboard : isFeature ? state.featureDashboard : state.agentDashboard;
+  const productLabel = isAsk ? "Ask" : isSearch ? "search" : isFeature ? "模型" : "StarSeeker";
+  const productTitle = isFeature ? "模型" : productLabel;
+  const actionLabel = isAsk || isSearch || isFeature ? "调用" : "会话";
+  const userActionLabel = isAsk || isSearch || isFeature ? "调用用户数" : "创建会话用户数";
+  const callLabel = isAsk ? "Ask 调用次数" : isSearch ? "search 调用次数" : isFeature ? "模型调用次数" : "创建会话次数";
   if (!dashboard) {
     if (els.agentUsageCards) {
       els.agentUsageCards.innerHTML = "";
@@ -1558,27 +2008,68 @@ function renderAgentDashboard() {
   const meta = dashboard.meta || {};
   if (els.agentGranularityHint) {
     els.agentGranularityHint.textContent =
-      meta.range_summary || "数据来源为 `deerflow_prod`，切换日期区间后会独立刷新 Agent 监控。";
+      meta.range_summary || `数据来源会按 ${productLabel} 概览独立刷新。`;
   }
-  ensureRange("agent");
+  if (els.agentOverviewTitle) els.agentOverviewTitle.textContent = isFeature ? "模型使用概览" : `${productTitle} 使用概览`;
+  if (els.agentOverviewNote) {
+    els.agentOverviewNote.textContent = isAsk
+      ? "调用来自 umap_db.public.activity；/rag 与 /rag-search-literature 相关接口计为 Ask 调用。"
+      : isSearch
+        ? "调用来自 umap_db.public.activity；/search、/find-friend-with-image 与分子详情相关接口计为 search 调用。"
+      : isFeature
+        ? "调用来自 umap_db.public.activity；仅统计除 StarSeeker、Ask 和 search 之外的模型分类调用。"
+        : "会话来自 Deerflow `store`；轮数由 checkpoint 消息中的用户提问与 Agent 回答配对统计。";
+  }
+  if (els.agentTrendTitle) {
+    els.agentTrendTitle.textContent =
+      isAsk ? "Ask 调用次数 / 调用用户数趋势" : isSearch ? "search 调用次数 / 调用用户数趋势" : isFeature ? "模型调用次数 / 调用用户数趋势" : "创建会话次数 / 创建会话用户数趋势";
+  }
+  if (els.agentDistributionTitle) els.agentDistributionTitle.textContent = isFeature ? "模型使用用户分布" : `${productTitle} 使用用户分布`;
+  if (els.agentDistributionNote) {
+    els.agentDistributionNote.textContent = `按所选时间段内的 ${productLabel} ${actionLabel}，分别观察用户与组织的使用量占比和排名。`;
+  }
+  if (els.agentSessionTitle) els.agentSessionTitle.textContent = isAsk ? "Ask 调用明细" : isSearch ? "search 调用明细" : isFeature ? "模型调用明细" : "Agent Session";
+  if (els.agentSessionNote) {
+    els.agentSessionNote.textContent = isAsk
+      ? "浏览统计时间段内的 Ask 调用用户汇总和调用明细。"
+      : isSearch
+        ? "浏览统计时间段内的 search 调用用户汇总和调用明细。"
+      : isFeature
+        ? "浏览统计时间段内的模型调用用户汇总和调用明细。"
+        : "浏览统计时间段内的全部用户使用汇总和提问明细，并支持导出完整对话。";
+  }
+  syncAgentRangeInputs(isAsk ? "ask" : isSearch ? "search" : isFeature ? "feature" : "agent");
 
   const agentOverview = dashboard.agent_usage_overview || {};
   const retentionOverview = dashboard.agent_retention_overview || {};
   if (els.agentUsageCards) {
-    els.agentUsageCards.innerHTML = [
-      ["创建会话次数", formatCount(agentOverview.session_creations), `${meta.current_label || "当前周期"}内 Deerflow store 新建 thread 记录`],
-      ["创建会话用户数", formatCount(agentOverview.session_users), "Deerflow thread 按用户名去重统计"],
+    const usageCards = [
       [
+        callLabel,
+        formatCount(agentOverview.session_creations),
+        isAsk
+          ? `${meta.current_label || "当前周期"}内 Ask 接口调用次数`
+          : isSearch
+            ? `${meta.current_label || "当前周期"}内 search 接口调用次数`
+          : isFeature
+            ? `${meta.current_label || "当前周期"}内除 StarSeeker、Ask 和 search 外的模型调用次数`
+            : `${meta.current_label || "当前周期"}内 Deerflow store 新建 thread 记录`,
+      ],
+      [userActionLabel, formatCount(agentOverview.session_users), isAsk ? "Ask 调用按用户去重统计" : isSearch ? "search 调用按用户去重统计" : isFeature ? "模型调用按用户去重统计" : "Deerflow thread 按用户名去重统计"],
+    ];
+    if (!isAsk && !isSearch && !isFeature) {
+      usageCards.push([
         "平均会话轮数",
         formatAverage(agentOverview.average_session_rounds),
         "每个 Session 的 min(用户提问数, Agent 回答数) 的平均值",
-      ],
-      [
-        "人均创建会话次数",
+      ]);
+    }
+    usageCards.push([
+        `${isAsk || isSearch || isFeature ? "人均调用次数" : "人均创建会话次数"}`,
         formatAverage(Number(agentOverview.session_creations || 0) / Math.max(Number(agentOverview.session_users || 0), 1)),
-        "创建会话次数 / 创建会话用户数",
-      ],
-    ]
+        `${isAsk ? "Ask 调用次数 / 调用用户数" : isSearch ? "search 调用次数 / 调用用户数" : isFeature ? "模型调用次数 / 调用用户数" : "创建会话次数 / 创建会话用户数"}`,
+      ]);
+    els.agentUsageCards.innerHTML = usageCards
       .map(
         ([label, value, note]) => `
           <article class="overview-card">
@@ -1599,7 +2090,7 @@ function renderAgentDashboard() {
       [
         "回访用户数",
         formatCount(retentionOverview.returning_users),
-        `统计区间内至少 ${2} 天创建 Session 的用户数`,
+        `统计区间内至少 ${2} 天${isAsk ? "调用 Ask" : isSearch ? "调用 search" : isFeature ? "调用模型" : "创建 Session"} 的用户数`,
       ],
       [
         "回访率",
@@ -1609,7 +2100,7 @@ function renderAgentDashboard() {
       [
         "高粘性用户数",
         formatCount(retentionOverview.sticky_users),
-        `统计区间内至少 ${3} 天创建 Session 的用户数`,
+        `统计区间内至少 ${3} 天${isAsk ? "调用 Ask" : isSearch ? "调用 search" : isFeature ? "调用模型" : "创建 Session"} 的用户数`,
       ],
       [
         "跨周活跃用户数",
@@ -1619,7 +2110,7 @@ function renderAgentDashboard() {
       [
         "人均活跃天数",
         formatAverage(retentionOverview.avg_active_days),
-        "创建会话用户在区间内的平均活跃天数",
+        `${isAsk || isSearch || isFeature ? "调用用户" : "创建会话用户"}在区间内的平均活跃天数`,
       ],
     ]
       .map(
@@ -1711,12 +2202,16 @@ function renderAgentDashboard() {
         <td>${escapeHtml(row.organization_name || "-")}</td>
         <td>${escapeHtml(row.name || "-")}</td>
         <td>${escapeHtml(formatDate(row.created_at))}</td>
-        <td><button type="button" class="tool-button agent-download-button" data-thread-id="${escapeHtml(row.thread_id || "")}"><i data-lucide="download"></i>下载</button></td>
+        <td>${
+          row.exportable === false || isAsk || isSearch || isFeature
+            ? `<span class="muted-cell">-</span>`
+            : `<button type="button" class="tool-button agent-download-button" data-thread-id="${escapeHtml(row.thread_id || "")}"><i data-lucide="download"></i>下载</button>`
+        }</td>
       </tr>
     `,
     5
   );
-  if (els.agentSessionPageInfo) els.agentSessionPageInfo.textContent = `${state.agentSessionPage} / ${sessionTotalPages} · ${sessionRows.length} 个 Session`;
+  if (els.agentSessionPageInfo) els.agentSessionPageInfo.textContent = `${state.agentSessionPage} / ${sessionTotalPages} · ${sessionRows.length} 个${isAsk || isSearch || isFeature ? "调用" : " Session"}`;
   if (els.agentSessionPrev) els.agentSessionPrev.disabled = state.agentSessionPage <= 1;
   if (els.agentSessionNext) els.agentSessionNext.disabled = state.agentSessionPage >= sessionTotalPages;
   Array.from(els.agentUsageBody?.querySelectorAll(".agent-download-button") || []).forEach((button) => {
@@ -1730,7 +2225,7 @@ function renderAgentDashboard() {
     {
       sessionCreate: dashboard.agent_session_trend || [],
       sessionUsers: dashboard.agent_user_trend || [],
-      averageRounds: dashboard.agent_round_trend || [],
+      averageRounds: isAsk || isSearch || isFeature ? [] : dashboard.agent_round_trend || [],
     },
     meta.start_date,
     meta.end_date
@@ -1740,6 +2235,7 @@ function renderAgentDashboard() {
 function renderDashboards() {
   renderMonitorDashboard();
   renderPlatformDashboard();
+  renderFeatureDashboard();
   renderAgentDashboard();
   applyTranslations();
 }
@@ -1825,13 +2321,29 @@ async function loadUsers() {
   renderTable();
 }
 
-async function fetchDashboard(startDate, endDate, audience = "all", { includeAgentRounds = false } = {}) {
+async function fetchDashboard(startDate, endDate, audience = "all", { includeAgentRounds = false, agentFeature = "starseeker" } = {}) {
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,
   });
   params.set("audience", audience);
   if (includeAgentRounds) params.set("include_agent_rounds", "true");
+  if (agentFeature) params.set("agent_feature", agentFeature);
+  if (agentFeature === "ask") {
+    return request(`/api/reports/ask-dashboard?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+  }
+  if (agentFeature === "search") {
+    return request(`/api/reports/search-dashboard?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+  }
+  if (agentFeature === "feature") {
+    return request(`/api/reports/feature-dashboard?${params.toString()}`, {
+      headers: authHeaders(),
+    });
+  }
   return request(`/api/reports/dashboard?${params.toString()}`, {
     headers: authHeaders(),
   });
@@ -1869,7 +2381,10 @@ async function loadPlatformDashboard() {
 }
 
 async function loadAgentDashboard() {
-  const dashboard = await fetchDashboard(state.agentStartDate, state.agentEndDate, state.agentAudience, { includeAgentRounds: true });
+  const dashboard = await fetchDashboard(state.agentStartDate, state.agentEndDate, state.agentAudience, {
+    includeAgentRounds: true,
+    agentFeature: "starseeker",
+  });
   state.agentDashboard = dashboard;
   state.agentUserPage = 1;
   state.agentSessionPage = 1;
@@ -1882,6 +2397,68 @@ async function loadAgentDashboard() {
   persistRange("agent");
   renderAgentDashboard();
   applyTranslations();
+}
+
+async function loadAskDashboard() {
+  const dashboard = await fetchDashboard(state.askStartDate, state.askEndDate, state.askAudience, {
+    agentFeature: "ask",
+  });
+  state.askDashboard = dashboard;
+  state.agentUserPage = 1;
+  state.agentSessionPage = 1;
+  state.agentStickyUserPage = 1;
+  if (dashboard?.meta?.start_date) {
+    state.askStartDate = dashboard.meta.start_date;
+  }
+  if (dashboard?.meta?.end_date) {
+    state.askEndDate = dashboard.meta.end_date;
+  }
+  persistRange("ask");
+  renderAgentDashboard();
+  applyTranslations();
+}
+
+async function loadSearchDashboard() {
+  const dashboard = await fetchDashboard(state.searchStartDate, state.searchEndDate, state.searchAudience, {
+    agentFeature: "search",
+  });
+  state.searchDashboard = dashboard;
+  state.agentUserPage = 1;
+  state.agentSessionPage = 1;
+  state.agentStickyUserPage = 1;
+  if (dashboard?.meta?.start_date) {
+    state.searchStartDate = dashboard.meta.start_date;
+  }
+  if (dashboard?.meta?.end_date) {
+    state.searchEndDate = dashboard.meta.end_date;
+  }
+  persistRange("search");
+  renderAgentDashboard();
+  applyTranslations();
+}
+
+async function loadFeatureDashboard() {
+  try {
+    const dashboard = await fetchDashboard(state.featureStartDate, state.featureEndDate, state.featureAudience, {
+      agentFeature: "feature",
+    });
+    state.featureDashboard = dashboard;
+    state.featureDetailPage = 1;
+    if (dashboard?.meta?.start_date) {
+      state.featureStartDate = dashboard.meta.start_date;
+    }
+    if (dashboard?.meta?.end_date) {
+      state.featureEndDate = dashboard.meta.end_date;
+    }
+    persistRange("feature");
+    renderFeatureDashboard();
+    applyTranslations();
+  } catch (err) {
+    state.featureDashboard = null;
+    renderFeatureError(err.message);
+    applyTranslations(els.featureView);
+    throw err;
+  }
 }
 
 async function loadAllDashboards() {
@@ -2243,9 +2820,13 @@ async function confirmSendReport() {
 }
 
 async function bootstrap() {
+  applyDashboardRangeDefaultMigration();
   ensureRange("monitor");
   ensureRange("platform");
   ensureRange("agent");
+  ensureRange("ask");
+  ensureRange("search");
+  ensureRange("feature");
   renderTableHeader();
   renderColumnMenu();
   iconRefresh();
@@ -2299,6 +2880,27 @@ els.languageToggle?.addEventListener("click", () => {
 els.monitorNav.addEventListener("click", () => switchView("monitor"));
 els.platformNav.addEventListener("click", () => switchView("platform"));
 els.agentNav.addEventListener("click", () => switchView("agent"));
+els.askNav?.addEventListener("click", async () => {
+  switchView("ask");
+  if (!state.askDashboard) {
+    await loadAskDashboard();
+  }
+});
+els.searchNav?.addEventListener("click", async () => {
+  switchView("search");
+  if (!state.searchDashboard) {
+    await loadSearchDashboard();
+  }
+});
+els.featureNav?.addEventListener("click", async () => {
+  switchView("feature");
+  renderFeatureLoading();
+  try {
+    await loadFeatureDashboard();
+  } catch (err) {
+    showToast(err.message || "模型概览加载失败");
+  }
+});
 els.managementNav.addEventListener("click", () => switchView("management"));
 els.monitorRangeForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -2310,7 +2912,7 @@ els.monitorRangeForm.addEventListener("submit", async (event) => {
 });
 els.resetMonitorRange.addEventListener("click", async () => {
   ensureRange("monitor", true);
-  state.monitorAudience = "all";
+  state.monitorAudience = "external";
   ensureRange("monitor");
   persistRange("monitor");
   await loadMonitorDashboard();
@@ -2328,29 +2930,76 @@ if (els.platformRangeForm) {
 if (els.resetPlatformRange) {
   els.resetPlatformRange.addEventListener("click", async () => {
     ensureRange("platform", true);
-    state.platformAudience = "all";
+    state.platformAudience = "external";
     ensureRange("platform");
     persistRange("platform");
     await loadPlatformDashboard();
   });
 }
+if (els.featureRangeForm) {
+  els.featureRangeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    state.featureStartDate = els.featureStartDate.value;
+    state.featureEndDate = els.featureEndDate.value;
+    state.featureAudience = els.featureAudience.value;
+    persistRange("feature");
+    renderFeatureLoading();
+    try {
+      await loadFeatureDashboard();
+    } catch (err) {
+      showToast(err.message || "模型概览加载失败");
+    }
+  });
+}
+if (els.resetFeatureRange) {
+  els.resetFeatureRange.addEventListener("click", async () => {
+    ensureRange("feature", true);
+    state.featureAudience = "external";
+    ensureRange("feature");
+    persistRange("feature");
+    renderFeatureLoading();
+    try {
+      await loadFeatureDashboard();
+    } catch (err) {
+      showToast(err.message || "模型概览加载失败");
+    }
+  });
+}
 if (els.agentRangeForm) {
   els.agentRangeForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    state.agentStartDate = els.agentStartDate.value;
-    state.agentEndDate = els.agentEndDate.value;
-    state.agentAudience = els.agentAudience.value;
-    persistRange("agent");
-    await loadAgentDashboard();
+    const prefix = activeAgentPrefix();
+    state[`${prefix}StartDate`] = els.agentStartDate.value;
+    state[`${prefix}EndDate`] = els.agentEndDate.value;
+    state[`${prefix}Audience`] = els.agentAudience.value;
+    persistRange(prefix);
+    if (prefix === "ask") {
+      await loadAskDashboard();
+    } else if (prefix === "search") {
+      await loadSearchDashboard();
+    } else if (prefix === "feature") {
+      await loadFeatureDashboard();
+    } else {
+      await loadAgentDashboard();
+    }
   });
 }
 if (els.resetAgentRange) {
   els.resetAgentRange.addEventListener("click", async () => {
-    ensureRange("agent", true);
-    state.agentAudience = "all";
-    ensureRange("agent");
-    persistRange("agent");
-    await loadAgentDashboard();
+    const prefix = activeAgentPrefix();
+    ensureRange(prefix, true);
+    state[`${prefix}Audience`] = "external";
+    syncAgentRangeInputs(prefix);
+    persistRange(prefix);
+    if (prefix === "ask") {
+      await loadAskDashboard();
+    } else if (prefix === "search") {
+      await loadSearchDashboard();
+    } else if (prefix === "feature") {
+      await loadFeatureDashboard();
+    } else {
+      await loadAgentDashboard();
+    }
   });
 }
 els.sendReportButton.addEventListener("click", openReportDialog);
@@ -2405,6 +3054,14 @@ els.agentStickyUserPrev?.addEventListener("click", () => {
 els.agentStickyUserNext?.addEventListener("click", () => {
   state.agentStickyUserPage += 1;
   renderAgentDashboard();
+});
+els.featureDetailPrev?.addEventListener("click", () => {
+  state.featureDetailPage -= 1;
+  renderFeatureDashboard();
+});
+els.featureDetailNext?.addEventListener("click", () => {
+  state.featureDetailPage += 1;
+  renderFeatureDashboard();
 });
 els.monitorEndpointPrev?.addEventListener("click", () => {
   state.monitorEndpointPage -= 1;

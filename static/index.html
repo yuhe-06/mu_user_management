@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MU 用户管理</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260701-7" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260707-1" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   </head>
   <body>
@@ -59,6 +59,18 @@
                 <button id="agentNav" class="nav-item nav-child" type="button" data-view="agent">
                   <i data-lucide="bot"></i>
                   StarSeeker概览
+                </button>
+                <button id="askNav" class="nav-item nav-child" type="button" data-view="ask">
+                  <i data-lucide="message-circle-question"></i>
+                  Ask概览
+                </button>
+                <button id="searchNav" class="nav-item nav-child" type="button" data-view="search">
+                  <i data-lucide="search"></i>
+                  search概览
+                </button>
+                <button id="featureNav" class="nav-item nav-child" type="button" data-view="feature">
+                  <i data-lucide="blocks"></i>
+                  模型概览
                 </button>
               </div>
             </div>
@@ -312,6 +324,129 @@
               </section>
             </section>
 
+            <section id="featureView" class="content-view hidden">
+              <section class="monitor-toolbar feature-toolbar">
+                <div class="monitor-toolbar-copy">
+                  <h2>统计时间</h2>
+                  <p id="featureGranularityHint">统计除 StarSeeker、Ask 和 search 之外的 MU 模型调用，趋势统一按单日聚合。</p>
+                </div>
+                <div class="monitor-toolbar-controls">
+                  <form id="featureRangeForm" class="monitor-range-form">
+                    <label class="compact-field">
+                      用户群体
+                      <select id="featureAudience" name="audience">
+                        <option value="all">全部</option>
+                        <option value="internal">SES 内部</option>
+                        <option value="external">外部客户</option>
+                      </select>
+                    </label>
+                    <label class="compact-field">
+                      开始时间
+                      <input id="featureStartDate" name="start_date" type="date" />
+                    </label>
+                    <label class="compact-field">
+                      结束时间
+                      <input id="featureEndDate" name="end_date" type="date" />
+                    </label>
+                    <div class="monitor-range-actions">
+                      <button id="applyFeatureRange" type="submit" class="tool-button">应用</button>
+                      <button id="resetFeatureRange" type="button" class="tool-button">重置</button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+
+              <section class="feature-overview-layout">
+                <article class="feature-hero-card">
+                  <div>
+                    <span class="eyebrow">Feature Operations</span>
+                    <h2>模型使用总览</h2>
+                    <p>聚焦 MU 平台模型功能的调用规模、用户覆盖和使用集中度，排除 StarSeeker、Ask 与 search 的独立流量。</p>
+                  </div>
+                  <div id="featureOverviewCards" class="feature-kpi-grid"></div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>模型组合</h2>
+                      <p>查看各模型功能的调用占比、覆盖用户数、人均调用与日均调用。</p>
+                    </div>
+                  </div>
+                  <div id="featureMixGrid" class="feature-mix-grid"></div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>模型趋势</h2>
+                      <p>每个模型功能一张趋势图，对比调用次数与调用用户数的日变化。</p>
+                    </div>
+                  </div>
+                  <div id="featureOverviewTrendGrid" class="feature-trend-grid"></div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>使用排行</h2>
+                      <p>从用户、组织和原始接口三个角度定位主要使用来源。</p>
+                    </div>
+                  </div>
+                  <div class="feature-rank-grid">
+                    <section class="insight-panel">
+                      <div class="panel-title"><h3>Top 用户</h3></div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead><tr><th>用户</th><th>组织</th><th>调用次数</th></tr></thead>
+                          <tbody id="featureTopUsersBody"></tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <section class="insight-panel">
+                      <div class="panel-title"><h3>Top 组织</h3></div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead><tr><th>组织</th><th>调用次数</th><th>占比</th></tr></thead>
+                          <tbody id="featureTopOrganizationsBody"></tbody>
+                        </table>
+                      </div>
+                    </section>
+                    <section class="insight-panel">
+                      <div class="panel-title"><h3>Top 接口</h3></div>
+                      <div class="mini-table-wrap">
+                        <table>
+                          <thead><tr><th>接口</th><th>模型</th><th>调用次数</th></tr></thead>
+                          <tbody id="featureTopEndpointsBody"></tbody>
+                        </table>
+                      </div>
+                    </section>
+                  </div>
+                </article>
+
+                <article class="dashboard-surface">
+                  <div class="dashboard-heading">
+                    <div>
+                      <h2>调用明细</h2>
+                      <p>按时间倒序展示统计区间内的模型调用记录。</p>
+                    </div>
+                  </div>
+                  <div class="mini-table-wrap feature-detail-table-wrap">
+                    <table>
+                      <thead>
+                        <tr><th>时间</th><th>模型</th><th>接口</th><th>用户</th><th>组织</th></tr>
+                      </thead>
+                      <tbody id="featureDetailBody"></tbody>
+                    </table>
+                  </div>
+                  <div class="agent-table-pager">
+                    <span id="featureDetailPageInfo">1 / 1</span>
+                    <div><button id="featureDetailPrev" type="button" class="tool-button">上一页</button><button id="featureDetailNext" type="button" class="tool-button">下一页</button></div>
+                  </div>
+                </article>
+              </section>
+            </section>
+
             <section id="agentView" class="content-view hidden">
               <section class="monitor-toolbar">
                 <div class="monitor-toolbar-copy">
@@ -348,14 +483,14 @@
                 <article class="dashboard-surface">
                   <div class="dashboard-heading">
                     <div>
-                      <h2>Agent 使用概览</h2>
-                      <p>会话来自 Deerflow `store`；轮数由 checkpoint 消息中的用户提问与 Agent 回答配对统计。</p>
+                      <h2 id="agentOverviewTitle">Agent 使用概览</h2>
+                      <p id="agentOverviewNote">会话来自 Deerflow `store`；轮数由 checkpoint 消息中的用户提问与 Agent 回答配对统计。</p>
                     </div>
                   </div>
                   <div id="agentUsageCards" class="overview-cards overview-cards-compact"></div>
                   <div class="trend-chart-card trend-chart-card-wide agent-trend-card">
                     <div class="panel-title">
-                      <h3>创建会话次数 / 创建会话用户数趋势</h3>
+                      <h3 id="agentTrendTitle">创建会话次数 / 创建会话用户数趋势</h3>
                     </div>
                     <div id="agentTrendLegend" class="trend-legend"></div>
                     <div id="agentTrendChart" class="trend-chart"></div>
@@ -365,8 +500,8 @@
                 <article class="dashboard-surface">
                   <div class="dashboard-heading">
                     <div>
-                      <h2>使用用户分布</h2>
-                      <p>按所选时间段内创建的 Agent Session，分别观察用户与组织的使用量占比和排名。</p>
+                      <h2 id="agentDistributionTitle">使用用户分布</h2>
+                      <p id="agentDistributionNote">按所选时间段内创建的 Agent Session，分别观察用户与组织的使用量占比和排名。</p>
                     </div>
                   </div>
                   <div class="distribution-grid">
@@ -436,8 +571,8 @@
                 <article class="dashboard-surface">
                   <div class="dashboard-heading">
                     <div>
-                      <h2>Agent Session</h2>
-                      <p>浏览统计时间段内的全部用户使用汇总和提问明细，并支持导出完整对话。</p>
+                      <h2 id="agentSessionTitle">Agent Session</h2>
+                      <p id="agentSessionNote">浏览统计时间段内的全部用户使用汇总和提问明细，并支持导出完整对话。</p>
                     </div>
                   </div>
                   <div class="agent-session-grid">
@@ -828,6 +963,6 @@
     </dialog>
 
     <div id="toast" class="toast hidden"></div>
-    <script src="/static/app.js?v=20260701-15"></script>
+    <script src="/static/app.js?v=20260707-3"></script>
   </body>
 </html>

@@ -1,6 +1,7 @@
 import re
 import json
 import time as time_module
+from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from threading import Lock
 from typing import Literal, Optional, Tuple
@@ -247,6 +248,7 @@ def get_dashboard_report(
     end_date: Optional[date] = Query(default=None),
     include_agent_rounds: bool = Query(default=False),
     audience: Literal["all", "internal", "external"] = Query(default="all"),
+    agent_feature: Literal["starseeker", "ask"] = Query(default="starseeker"),
 ):
     resolved_start, resolved_end = _resolve_date_range(start_date, end_date)
     start_ts = datetime.combine(resolved_start, time.min)
@@ -1115,6 +1117,217 @@ def get_dashboard_report(
         key=lambda row: (-int(row["activity_count"] or 0), -int(row["session_count"] or 0)),
     )
 
+    monitor_agent_usage_overview = agent_usage_overview
+    monitor_agent_session_trend = agent_session_trend
+    monitor_agent_user_trend = agent_user_trend
+    monitor_agent_round_trend = agent_round_trend
+    monitor_agent_user_distribution = agent_user_distribution
+    monitor_agent_organization_distribution = agent_organization_distribution
+    monitor_agent_user_list = agent_user_list
+    monitor_agent_retention_overview = agent_retention_overview
+    monitor_agent_stickiness_distribution = agent_stickiness_distribution
+    monitor_agent_sticky_user_list = agent_sticky_user_list
+    monitor_agent_usage = agent_usage
+    monitor_agent_definition = "一条 Deerflow thread 计为一次 StarSeeker 调用、一次平台行为和一次平台会话。"
+
+    if agent_feature == "ask":
+        ask_condition = "(a.endpoint LIKE '/rag%' OR a.endpoint LIKE '/rag-search-literature%')"
+        monitor_agent_usage = _run_rows(
+            f"""
+            SELECT
+                a.id::text AS thread_id,
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                COALESCE(NULLIF(a.endpoint, ''), 'Ask 调用') AS name,
+                a.created_at,
+                false AS exportable
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            ORDER BY a.created_at DESC
+            """,
+            params,
+        )
+        monitor_agent_usage_overview = _run_rows(
+            f"""
+            SELECT
+                COUNT(*) AS session_creations,
+                COUNT(DISTINCT a.user_id) AS session_users,
+                NULL::numeric AS average_session_rounds
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            """,
+            params,
+        )[0]
+        monitor_agent_session_trend = _run_rows(
+            f"""
+            SELECT date_trunc('day', a.created_at)::date AS bucket_start, COUNT(*) AS count
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY 1
+            ORDER BY 1 ASC
+            """,
+            params,
+        )
+        monitor_agent_user_trend = _run_rows(
+            f"""
+            SELECT bucket_start, COUNT(DISTINCT user_id) AS count
+            FROM (
+                SELECT date_trunc('day', a.created_at)::date AS bucket_start, a.user_id
+                FROM public.activity a
+                JOIN public.users u ON u.id = a.user_id
+                WHERE {ask_condition}
+                  AND {_audience_condition('u')}
+                  AND a.created_at >= :start_ts
+                  AND a.created_at < :end_ts
+            ) ask_events
+            GROUP BY 1
+            ORDER BY 1 ASC
+            """,
+            params,
+        )
+        monitor_agent_round_trend = []
+        monitor_agent_user_distribution = _run_rows(
+            f"""
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS label,
+                COUNT(*) AS count
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY 1
+            ORDER BY count DESC, label
+            """,
+            params,
+        )
+        monitor_agent_organization_distribution = _run_rows(
+            f"""
+            SELECT
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS label,
+                COUNT(*) AS count
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY 1
+            ORDER BY count DESC, label
+            """,
+            params,
+        )
+        monitor_agent_user_list = _run_rows(
+            f"""
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                COUNT(*) AS session_creations,
+                MIN(a.created_at) AS first_created_at,
+                MAX(a.created_at) AS last_created_at
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY 1, 2
+            ORDER BY session_creations DESC, last_created_at DESC, username
+            """,
+            params,
+        )
+        monitor_agent_retention_overview = _run_rows(
+            f"""
+            WITH user_stats AS (
+                SELECT
+                    a.user_id,
+                    COUNT(*) AS session_creations,
+                    COUNT(DISTINCT a.created_at::date) AS active_days,
+                    COUNT(DISTINCT date_trunc('week', a.created_at)::date) AS active_weeks
+                FROM public.activity a
+                JOIN public.users u ON u.id = a.user_id
+                WHERE {ask_condition}
+                  AND {_audience_condition('u')}
+                  AND a.created_at >= :start_ts
+                  AND a.created_at < :end_ts
+                GROUP BY a.user_id
+            )
+            SELECT
+                COUNT(*) AS session_users,
+                COUNT(*) FILTER (WHERE active_days >= 2) AS returning_users,
+                COUNT(*) FILTER (WHERE active_days >= 3) AS sticky_users,
+                COUNT(*) FILTER (WHERE active_weeks >= 2) AS multi_week_users,
+                COALESCE(AVG(active_days::numeric), 0) AS avg_active_days,
+                COALESCE(AVG(session_creations::numeric), 0) AS avg_sessions_per_user
+            FROM user_stats
+            """,
+            params,
+        )[0]
+        monitor_agent_stickiness_distribution = _run_rows(
+            f"""
+            WITH user_stats AS (
+                SELECT a.user_id, COUNT(DISTINCT a.created_at::date) AS active_days
+                FROM public.activity a
+                JOIN public.users u ON u.id = a.user_id
+                WHERE {ask_condition}
+                  AND {_audience_condition('u')}
+                  AND a.created_at >= :start_ts
+                  AND a.created_at < :end_ts
+                GROUP BY a.user_id
+            )
+            SELECT
+                CASE
+                    WHEN active_days = 1 THEN '1天'
+                    WHEN active_days BETWEEN 2 AND 3 THEN '2-3天'
+                    WHEN active_days BETWEEN 4 AND 7 THEN '4-7天'
+                    ELSE '8天及以上'
+                END AS bucket,
+                COUNT(*) AS user_count,
+                MIN(active_days) AS min_days,
+                MAX(active_days) AS max_days
+            FROM user_stats
+            GROUP BY 1
+            ORDER BY min_days ASC, max_days ASC
+            """,
+            params,
+        )
+        monitor_agent_sticky_user_list = _run_rows(
+            f"""
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                COUNT(*) AS session_creations,
+                COUNT(DISTINCT a.created_at::date) AS active_days,
+                COUNT(DISTINCT date_trunc('week', a.created_at)::date) AS active_weeks,
+                MIN(a.created_at) AS first_created_at,
+                MAX(a.created_at) AS last_created_at
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {ask_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY 1, 2
+            ORDER BY active_days DESC, active_weeks DESC, session_creations DESC, last_created_at DESC, username
+            LIMIT 20
+            """,
+            params,
+        )
+        monitor_agent_definition = "Ask 概览基于 umap_db.public.activity 中 /rag 与 /rag-search-literature 相关接口；一次接口调用计为一次 Ask 调用。"
+
     return {
         "meta": {
             "current_label": "所选时间段",
@@ -1124,11 +1337,13 @@ def get_dashboard_report(
             "audience": audience,
             "audience_label": {"all": "全部", "internal": "SES 内部", "external": "外部客户"}[audience],
             "range_summary": f"统计区间为 {params['start_date']} 至 {params['end_date']}，用户群体为 { {'all': '全部', 'internal': 'SES 内部', 'external': '外部客户'}[audience] }，趋势统一按单日聚合。",
+            "agent_feature": agent_feature,
+            "agent_feature_label": {"starseeker": "StarSeeker", "ask": "Ask"}[agent_feature],
             "data_sources": {
                 "platform": "umap_db",
                 "agent": "deerflow_prod.public.store",
             },
-            "agent_definition": "一条 Deerflow thread 计为一次 StarSeeker 调用、一次平台行为和一次平台会话。",
+            "agent_definition": monitor_agent_definition,
         },
         "overview": overview,
         "signup_trend": signup_trend,
@@ -1141,19 +1356,911 @@ def get_dashboard_report(
         "active_user_trend": active_user_trend,
         "feature_usage": feature_usage,
         "feature_usage_trend": feature_usage_trend,
-        "agent_usage_overview": agent_usage_overview,
-        "agent_session_trend": agent_session_trend,
-        "agent_user_trend": agent_user_trend,
-        "agent_round_trend": agent_round_trend,
-        "agent_user_distribution": agent_user_distribution,
-        "agent_organization_distribution": agent_organization_distribution,
-        "agent_user_list": agent_user_list,
-        "agent_retention_overview": agent_retention_overview,
-        "agent_stickiness_distribution": agent_stickiness_distribution,
-        "agent_sticky_user_list": agent_sticky_user_list,
-        "agent_usage": agent_usage,
+        "agent_usage_overview": monitor_agent_usage_overview,
+        "agent_session_trend": monitor_agent_session_trend,
+        "agent_user_trend": monitor_agent_user_trend,
+        "agent_round_trend": monitor_agent_round_trend,
+        "agent_user_distribution": monitor_agent_user_distribution,
+        "agent_organization_distribution": monitor_agent_organization_distribution,
+        "agent_user_list": monitor_agent_user_list,
+        "agent_retention_overview": monitor_agent_retention_overview,
+        "agent_stickiness_distribution": monitor_agent_stickiness_distribution,
+        "agent_sticky_user_list": monitor_agent_sticky_user_list,
+        "agent_usage": monitor_agent_usage,
         "top_endpoints": top_endpoints,
         "top_users": top_users,
+    }
+
+
+def _get_activity_call_dashboard_report(
+    *,
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    audience: Literal["all", "internal", "external"] = Query(default="all"),
+    endpoint_condition: str,
+    feature_key: str,
+    feature_label: str,
+    fallback_name: str,
+    definition: str,
+):
+    resolved_start, resolved_end = _resolve_date_range(start_date, end_date)
+    start_ts = datetime.combine(resolved_start, time.min)
+    end_ts = datetime.combine(resolved_end + timedelta(days=1), time.min)
+    params = {
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+        "start_date": resolved_start.isoformat(),
+        "end_date": resolved_end.isoformat(),
+        "audience": audience,
+    }
+
+    usage = _run_rows(
+        f"""
+        SELECT
+            a.id::text AS thread_id,
+            COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+            COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+            COALESCE(NULLIF(a.endpoint, ''), :fallback_name) AS name,
+            a.created_at,
+            false AS exportable
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        ORDER BY a.created_at DESC
+        """,
+        {**params, "fallback_name": fallback_name},
+    )
+    usage_overview = _run_rows(
+        f"""
+        SELECT
+            COUNT(*) AS session_creations,
+            COUNT(DISTINCT a.user_id) AS session_users,
+            NULL::numeric AS average_session_rounds
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        """,
+        params,
+    )[0]
+    session_trend = _run_rows(
+        f"""
+        SELECT date_trunc('day', a.created_at)::date AS bucket_start, COUNT(*) AS count
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        GROUP BY 1
+        ORDER BY 1 ASC
+        """,
+        params,
+    )
+    user_trend = _run_rows(
+        f"""
+        SELECT bucket_start, COUNT(DISTINCT user_id) AS count
+        FROM (
+            SELECT date_trunc('day', a.created_at)::date AS bucket_start, a.user_id
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {endpoint_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+        ) ask_events
+        GROUP BY 1
+        ORDER BY 1 ASC
+        """,
+        params,
+    )
+    user_distribution = _run_rows(
+        f"""
+        SELECT
+            COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS label,
+            COUNT(*) AS count
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        GROUP BY 1
+        ORDER BY count DESC, label
+        """,
+        params,
+    )
+    organization_distribution = _run_rows(
+        f"""
+        SELECT
+            COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS label,
+            COUNT(*) AS count
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        GROUP BY 1
+        ORDER BY count DESC, label
+        """,
+        params,
+    )
+    user_list = _run_rows(
+        f"""
+        SELECT
+            COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+            COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+            COUNT(*) AS session_creations,
+            MIN(a.created_at) AS first_created_at,
+            MAX(a.created_at) AS last_created_at
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        GROUP BY 1, 2
+        ORDER BY session_creations DESC, last_created_at DESC, username
+        """,
+        params,
+    )
+    retention_overview = _run_rows(
+        f"""
+        WITH user_stats AS (
+            SELECT
+                a.user_id,
+                COUNT(*) AS session_creations,
+                COUNT(DISTINCT a.created_at::date) AS active_days,
+                COUNT(DISTINCT date_trunc('week', a.created_at)::date) AS active_weeks
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {endpoint_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY a.user_id
+        )
+        SELECT
+            COUNT(*) AS session_users,
+            COUNT(*) FILTER (WHERE active_days >= 2) AS returning_users,
+            COUNT(*) FILTER (WHERE active_days >= 3) AS sticky_users,
+            COUNT(*) FILTER (WHERE active_weeks >= 2) AS multi_week_users,
+            COALESCE(AVG(active_days::numeric), 0) AS avg_active_days,
+            COALESCE(AVG(session_creations::numeric), 0) AS avg_sessions_per_user
+        FROM user_stats
+        """,
+        params,
+    )[0]
+    stickiness_distribution = _run_rows(
+        f"""
+        WITH user_stats AS (
+            SELECT a.user_id, COUNT(DISTINCT a.created_at::date) AS active_days
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE {endpoint_condition}
+              AND {_audience_condition('u')}
+              AND a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+            GROUP BY a.user_id
+        )
+        SELECT
+            CASE
+                WHEN active_days = 1 THEN '1天'
+                WHEN active_days BETWEEN 2 AND 3 THEN '2-3天'
+                WHEN active_days BETWEEN 4 AND 7 THEN '4-7天'
+                ELSE '8天及以上'
+            END AS bucket,
+            COUNT(*) AS user_count,
+            MIN(active_days) AS min_days,
+            MAX(active_days) AS max_days
+        FROM user_stats
+        GROUP BY 1
+        ORDER BY min_days ASC, max_days ASC
+        """,
+        params,
+    )
+    sticky_user_list = _run_rows(
+        f"""
+        SELECT
+            COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+            COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+            COUNT(*) AS session_creations,
+            COUNT(DISTINCT a.created_at::date) AS active_days,
+            COUNT(DISTINCT date_trunc('week', a.created_at)::date) AS active_weeks,
+            MIN(a.created_at) AS first_created_at,
+            MAX(a.created_at) AS last_created_at
+        FROM public.activity a
+        JOIN public.users u ON u.id = a.user_id
+        WHERE {endpoint_condition}
+          AND {_audience_condition('u')}
+          AND a.created_at >= :start_ts
+          AND a.created_at < :end_ts
+        GROUP BY 1, 2
+        ORDER BY active_days DESC, active_weeks DESC, session_creations DESC, last_created_at DESC, username
+        LIMIT 20
+        """,
+        params,
+    )
+
+    audience_label = {"all": "全部", "internal": "SES 内部", "external": "外部客户"}[audience]
+    return {
+        "meta": {
+            "current_label": "所选时间段",
+            "trend_label": "按日",
+            "start_date": params["start_date"],
+            "end_date": params["end_date"],
+            "audience": audience,
+            "audience_label": audience_label,
+            "range_summary": f"统计区间为 {params['start_date']} 至 {params['end_date']}，用户群体为 {audience_label}，趋势统一按单日聚合。",
+            "agent_feature": feature_key,
+            "agent_feature_label": feature_label,
+            "data_sources": {"platform": "umap_db"},
+            "agent_definition": definition,
+        },
+        "agent_usage_overview": usage_overview,
+        "agent_session_trend": session_trend,
+        "agent_user_trend": user_trend,
+        "agent_round_trend": [],
+        "agent_user_distribution": user_distribution,
+        "agent_organization_distribution": organization_distribution,
+        "agent_user_list": user_list,
+        "agent_retention_overview": retention_overview,
+        "agent_stickiness_distribution": stickiness_distribution,
+        "agent_sticky_user_list": sticky_user_list,
+        "agent_usage": usage,
+    }
+
+
+@router.get("/ask-dashboard")
+def get_ask_dashboard_report(
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    audience: Literal["all", "internal", "external"] = Query(default="all"),
+):
+    return _get_activity_call_dashboard_report(
+        start_date=start_date,
+        end_date=end_date,
+        audience=audience,
+        endpoint_condition="(a.endpoint LIKE '/rag%' OR a.endpoint LIKE '/rag-search-literature%')",
+        feature_key="ask",
+        feature_label="Ask",
+        fallback_name="Ask 调用",
+        definition="Ask 概览基于 umap_db.public.activity 中 /rag 与 /rag-search-literature 相关接口；一次接口调用计为一次 Ask 调用。",
+    )
+
+
+@router.get("/search-dashboard")
+def get_search_dashboard_report(
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    audience: Literal["all", "internal", "external"] = Query(default="all"),
+):
+    return _get_activity_call_dashboard_report(
+        start_date=start_date,
+        end_date=end_date,
+        audience=audience,
+        endpoint_condition=(
+            "(a.endpoint LIKE '/search%' "
+            "OR a.endpoint LIKE '/search-35%' "
+            "OR a.endpoint LIKE '/find-friend-with-image%' "
+            "OR a.endpoint LIKE '/api/molecule_details%')"
+        ),
+        feature_key="search",
+        feature_label="search",
+        fallback_name="search 调用",
+        definition="search 概览基于 umap_db.public.activity 中 /search、/find-friend-with-image 与分子详情相关接口；一次接口调用计为一次 search 调用。",
+    )
+
+
+@router.get("/feature-dashboard")
+def get_feature_dashboard_report(
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    audience: Literal["all", "internal", "external"] = Query(default="all"),
+):
+    resolved_start, resolved_end = _resolve_date_range(start_date, end_date)
+    start_ts = datetime.combine(resolved_start, time.min)
+    end_ts = datetime.combine(resolved_end + timedelta(days=1), time.min)
+    params = {
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+        "start_date": resolved_start.isoformat(),
+        "end_date": resolved_end.isoformat(),
+        "audience": audience,
+    }
+    feature_case = """
+        CASE
+            WHEN a.endpoint = '/api/md/run' THEN 'MD'
+            WHEN a.endpoint LIKE '/api/cellLife/model_predict%' THEN 'cell life predict'
+            WHEN a.endpoint LIKE '/api/cellPerformance/model_predict%'
+              OR a.endpoint LIKE '/api/cellPerformance/llm_analysis%' THEN 'electrolyte design'
+            WHEN a.endpoint LIKE '/api/electrodePerformance/model_predict?type=1%'
+              OR a.endpoint = '/api/electrodePerformance/model_predict'
+              OR (
+                  a.endpoint LIKE '/api/electrodePerformance/model_predict%'
+                  AND a.endpoint NOT LIKE '%type=2%'
+              ) THEN 'electrode forward design'
+            WHEN a.endpoint LIKE '/api/electrodePerformance/backward/result%'
+              OR a.endpoint LIKE '/api/electrodePerformance/model_predict?type=2%' THEN 'electrode inverse design'
+            ELSE NULL
+        END
+    """
+
+    feature_usage = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                a.id::text AS thread_id,
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                a.endpoint,
+                a.created_at,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT
+            thread_id,
+            username,
+            organization_name,
+            feature_name,
+            endpoint,
+            feature_name || ' / ' || endpoint AS name,
+            created_at,
+            false AS exportable
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        ORDER BY created_at DESC
+        """,
+        params,
+    )
+
+    feature_summary_counts = defaultdict(lambda: {"call_count": 0, "users": set()})
+    daily_counts = defaultdict(lambda: {"call_count": 0, "users": set()})
+    user_counts = defaultdict(lambda: {"organization_name": "-", "call_count": 0, "dates": set(), "weeks": set()})
+    organization_counts = defaultdict(int)
+    endpoint_counts = defaultdict(lambda: {"feature_name": "-", "call_count": 0})
+
+    for row in feature_usage:
+        feature_name = row.get("feature_name") or "-"
+        username = row.get("username") or "-"
+        organization_name = row.get("organization_name") or "未填写组织"
+        endpoint = row.get("endpoint") or "-"
+        created_at = row.get("created_at")
+        if isinstance(created_at, datetime):
+            bucket_start = created_at.date()
+            week_start = bucket_start - timedelta(days=bucket_start.weekday())
+        else:
+            bucket_start = created_at
+            week_start = created_at
+
+        feature_summary_counts[feature_name]["call_count"] += 1
+        feature_summary_counts[feature_name]["users"].add(username)
+        daily_counts[(feature_name, bucket_start)]["call_count"] += 1
+        daily_counts[(feature_name, bucket_start)]["users"].add(username)
+        user_counts[username]["organization_name"] = organization_name
+        user_counts[username]["call_count"] += 1
+        user_counts[username]["dates"].add(bucket_start)
+        user_counts[username]["weeks"].add(week_start)
+        organization_counts[organization_name] += 1
+        endpoint_counts[(endpoint, feature_name)]["feature_name"] = feature_name
+        endpoint_counts[(endpoint, feature_name)]["call_count"] += 1
+
+    feature_usage_summary = sorted(
+        [
+            {
+                "feature_name": feature_name,
+                "call_count": values["call_count"],
+                "user_count": len(values["users"]),
+            }
+            for feature_name, values in feature_summary_counts.items()
+        ],
+        key=lambda row: (-row["call_count"], row["feature_name"]),
+    )
+    feature_usage_trend = sorted(
+        [
+            {
+                "feature_name": feature_name,
+                "bucket_start": bucket_start,
+                "call_count": values["call_count"],
+                "user_count": len(values["users"]),
+            }
+            for (feature_name, bucket_start), values in daily_counts.items()
+        ],
+        key=lambda row: (row["feature_name"], row["bucket_start"]),
+    )
+    feature_top_users = sorted(
+        [
+            {
+                "username": username,
+                "organization_name": values["organization_name"],
+                "call_count": values["call_count"],
+            }
+            for username, values in user_counts.items()
+        ],
+        key=lambda row: (-row["call_count"], row["username"]),
+    )[:10]
+    feature_organization_distribution = sorted(
+        [{"label": organization, "count": count} for organization, count in organization_counts.items()],
+        key=lambda row: (-row["count"], row["label"]),
+    )
+    feature_top_endpoints = sorted(
+        [
+            {
+                "endpoint": endpoint,
+                "feature_name": values["feature_name"],
+                "call_count": values["call_count"],
+            }
+            for (endpoint, _feature_name), values in endpoint_counts.items()
+        ],
+        key=lambda row: (-row["call_count"], row["endpoint"]),
+    )[:10]
+    feature_user_list = sorted(
+        [
+            {
+                "username": username,
+                "organization_name": values["organization_name"],
+                "session_creations": values["call_count"],
+                "active_days": len(values["dates"]),
+                "active_weeks": len(values["weeks"]),
+                "first_created_at": None,
+                "last_created_at": None,
+            }
+            for username, values in user_counts.items()
+        ],
+        key=lambda row: (-row["session_creations"], row["username"]),
+    )
+    feature_stickiness_distribution_counts = defaultdict(int)
+    for values in user_counts.values():
+        active_days = len(values["dates"])
+        if active_days == 1:
+            bucket = "1天"
+            min_days = max_days = 1
+        elif active_days <= 3:
+            bucket = "2-3天"
+            min_days, max_days = 2, 3
+        elif active_days <= 7:
+            bucket = "4-7天"
+            min_days, max_days = 4, 7
+        else:
+            bucket = "8天及以上"
+            min_days, max_days = 8, active_days
+        feature_stickiness_distribution_counts[(bucket, min_days, max_days)] += 1
+    feature_stickiness_distribution = [
+        {"bucket": bucket, "user_count": count, "min_days": min_days, "max_days": max_days}
+        for (bucket, min_days, max_days), count in sorted(
+            feature_stickiness_distribution_counts.items(),
+            key=lambda item: (item[0][1], item[0][2]),
+        )
+    ]
+    feature_sticky_user_list = sorted(
+        feature_user_list,
+        key=lambda row: (-row["active_days"], -row["active_weeks"], -row["session_creations"], row["username"]),
+    )[:20]
+    total_calls = len(feature_usage)
+    total_users = len(user_counts)
+    returning_users = sum(1 for values in user_counts.values() if len(values["dates"]) >= 2)
+    sticky_users = sum(1 for values in user_counts.values() if len(values["dates"]) >= 3)
+    multi_week_users = sum(1 for values in user_counts.values() if len(values["weeks"]) >= 2)
+    avg_active_days = (
+        sum(len(values["dates"]) for values in user_counts.values()) / total_users
+        if total_users
+        else 0
+    )
+
+    audience_label = {"all": "全部", "internal": "SES 内部", "external": "外部客户"}[audience]
+    return {
+        "meta": {
+            "current_label": "所选时间段",
+            "trend_label": "按日",
+            "start_date": params["start_date"],
+            "end_date": params["end_date"],
+            "audience": audience,
+            "audience_label": audience_label,
+            "range_summary": f"统计区间为 {params['start_date']} 至 {params['end_date']}，用户群体为 {audience_label}，趋势统一按单日聚合。",
+            "agent_feature": "feature",
+            "agent_feature_label": "模型",
+            "data_sources": {"platform": "umap_db"},
+            "agent_definition": "模型概览统计 umap_db.public.activity 中除 StarSeeker、Ask 和 search 之外的模型分类调用。",
+        },
+        "agent_usage_overview": {
+            "session_creations": total_calls,
+            "session_users": total_users,
+            "average_session_rounds": None,
+        },
+        "agent_session_trend": [
+            {"bucket_start": row["bucket_start"], "count": row["call_count"]}
+            for row in feature_usage_trend
+        ],
+        "agent_user_trend": [
+            {"bucket_start": row["bucket_start"], "count": row["user_count"]}
+            for row in feature_usage_trend
+        ],
+        "agent_round_trend": [],
+        "agent_user_distribution": [
+            {"label": row["username"], "count": row["session_creations"]}
+            for row in feature_user_list
+        ],
+        "agent_organization_distribution": feature_organization_distribution,
+        "agent_user_list": feature_user_list,
+        "agent_retention_overview": {
+            "session_users": total_users,
+            "returning_users": returning_users,
+            "sticky_users": sticky_users,
+            "multi_week_users": multi_week_users,
+            "avg_active_days": avg_active_days,
+            "avg_sessions_per_user": total_calls / total_users if total_users else 0,
+        },
+        "agent_stickiness_distribution": feature_stickiness_distribution,
+        "agent_sticky_user_list": feature_sticky_user_list,
+        "agent_usage": feature_usage,
+        "feature_usage_summary": feature_usage_summary,
+        "feature_usage_trend": feature_usage_trend,
+        "feature_top_users": feature_top_users,
+        "feature_top_endpoints": feature_top_endpoints,
+    }
+    feature_usage_overview = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT a.user_id, {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT
+            COUNT(*) AS session_creations,
+            COUNT(DISTINCT user_id) AS session_users,
+            NULL::numeric AS average_session_rounds
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        """,
+        params,
+    )[0]
+    feature_usage_summary = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT a.user_id, {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT
+            feature_name,
+            COUNT(*) AS call_count,
+            COUNT(DISTINCT user_id) AS user_count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY feature_name
+        ORDER BY call_count DESC, feature_name
+        """,
+        params,
+    )
+    feature_usage_trend = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                date_trunc('day', a.created_at)::date AS bucket_start,
+                a.user_id,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT
+            feature_name,
+            bucket_start,
+            COUNT(*) AS call_count,
+            COUNT(DISTINCT user_id) AS user_count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY feature_name, bucket_start
+        ORDER BY feature_name, bucket_start
+        """,
+        params,
+    )
+    feature_session_trend = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT date_trunc('day', a.created_at)::date AS bucket_start, {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT bucket_start, COUNT(*) AS count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY 1
+        ORDER BY 1 ASC
+        """,
+        params,
+    )
+    feature_user_trend = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT date_trunc('day', a.created_at)::date AS bucket_start, a.user_id, {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT bucket_start, COUNT(DISTINCT user_id) AS count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY 1
+        ORDER BY 1 ASC
+        """,
+        params,
+    )
+    feature_user_distribution = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT username AS label, COUNT(*) AS count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY username
+        ORDER BY count DESC, label
+        """,
+        params,
+    )
+    feature_top_users = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT username, organization_name, COUNT(*) AS call_count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY username, organization_name
+        ORDER BY call_count DESC, username
+        LIMIT 10
+        """,
+        params,
+    )
+    feature_organization_distribution = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT organization_name AS label, COUNT(*) AS count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY organization_name
+        ORDER BY count DESC, label
+        """,
+        params,
+    )
+    feature_top_endpoints = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT a.endpoint, {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT endpoint, feature_name, COUNT(*) AS call_count
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY endpoint, feature_name
+        ORDER BY call_count DESC, endpoint
+        LIMIT 10
+        """,
+        params,
+    )
+    feature_user_list = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                a.created_at,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT
+            username,
+            organization_name,
+            COUNT(*) AS session_creations,
+            MIN(created_at) AS first_created_at,
+            MAX(created_at) AS last_created_at
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY username, organization_name
+        ORDER BY session_creations DESC, last_created_at DESC, username
+        """,
+        params,
+    )
+    feature_retention_overview = _run_rows(
+        f"""
+        WITH user_stats AS (
+            SELECT
+                a.user_id,
+                COUNT(*) AS session_creations,
+                COUNT(DISTINCT a.created_at::date) AS active_days,
+                COUNT(DISTINCT date_trunc('week', a.created_at)::date) AS active_weeks
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+              AND {feature_case} IS NOT NULL
+            GROUP BY a.user_id
+        )
+        SELECT
+            COUNT(*) AS session_users,
+            COUNT(*) FILTER (WHERE active_days >= 2) AS returning_users,
+            COUNT(*) FILTER (WHERE active_days >= 3) AS sticky_users,
+            COUNT(*) FILTER (WHERE active_weeks >= 2) AS multi_week_users,
+            COALESCE(AVG(active_days::numeric), 0) AS avg_active_days,
+            COALESCE(AVG(session_creations::numeric), 0) AS avg_sessions_per_user
+        FROM user_stats
+        """,
+        params,
+    )[0]
+    feature_stickiness_distribution = _run_rows(
+        f"""
+        WITH user_stats AS (
+            SELECT a.user_id, COUNT(DISTINCT a.created_at::date) AS active_days
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+              AND {feature_case} IS NOT NULL
+            GROUP BY a.user_id
+        )
+        SELECT
+            CASE
+                WHEN active_days = 1 THEN '1天'
+                WHEN active_days BETWEEN 2 AND 3 THEN '2-3天'
+                WHEN active_days BETWEEN 4 AND 7 THEN '4-7天'
+                ELSE '8天及以上'
+            END AS bucket,
+            COUNT(*) AS user_count,
+            MIN(active_days) AS min_days,
+            MAX(active_days) AS max_days
+        FROM user_stats
+        GROUP BY 1
+        ORDER BY min_days ASC, max_days ASC
+        """,
+        params,
+    )
+    feature_sticky_user_list = _run_rows(
+        f"""
+        WITH feature_events AS (
+            SELECT
+                COALESCE(NULLIF(u.username, ''), NULLIF(u.email, ''), u.id::text) AS username,
+                COALESCE(NULLIF(trim(u.organization_name), ''), '未填写组织') AS organization_name,
+                a.created_at,
+                {feature_case} AS feature_name
+            FROM public.activity a
+            JOIN public.users u ON u.id = a.user_id
+            WHERE a.created_at >= :start_ts
+              AND a.created_at < :end_ts
+              AND {_audience_condition('u')}
+              AND a.endpoint IS NOT NULL
+              AND a.endpoint != ''
+        )
+        SELECT
+            username,
+            organization_name,
+            COUNT(*) AS session_creations,
+            COUNT(DISTINCT created_at::date) AS active_days,
+            COUNT(DISTINCT date_trunc('week', created_at)::date) AS active_weeks,
+            MIN(created_at) AS first_created_at,
+            MAX(created_at) AS last_created_at
+        FROM feature_events
+        WHERE feature_name IS NOT NULL
+        GROUP BY username, organization_name
+        ORDER BY active_days DESC, active_weeks DESC, session_creations DESC, last_created_at DESC, username
+        LIMIT 20
+        """,
+        params,
+    )
+
+    audience_label = {"all": "全部", "internal": "SES 内部", "external": "外部客户"}[audience]
+    return {
+        "meta": {
+            "current_label": "所选时间段",
+            "trend_label": "按日",
+            "start_date": params["start_date"],
+            "end_date": params["end_date"],
+            "audience": audience,
+            "audience_label": audience_label,
+            "range_summary": f"统计区间为 {params['start_date']} 至 {params['end_date']}，用户群体为 {audience_label}，趋势统一按单日聚合。",
+            "agent_feature": "feature",
+            "agent_feature_label": "功能",
+            "data_sources": {"platform": "umap_db"},
+            "agent_definition": "模型概览统计 umap_db.public.activity 中除 StarSeeker、Ask 和 search 之外的模型分类调用。",
+        },
+        "agent_usage_overview": feature_usage_overview,
+        "agent_session_trend": feature_session_trend,
+        "agent_user_trend": feature_user_trend,
+        "agent_round_trend": [],
+        "agent_user_distribution": feature_user_distribution,
+        "agent_organization_distribution": feature_organization_distribution,
+        "agent_user_list": feature_user_list,
+        "agent_retention_overview": feature_retention_overview,
+        "agent_stickiness_distribution": feature_stickiness_distribution,
+        "agent_sticky_user_list": feature_sticky_user_list,
+        "agent_usage": feature_usage,
+        "feature_usage_summary": feature_usage_summary,
+        "feature_usage_trend": feature_usage_trend,
+        "feature_top_users": feature_top_users,
+        "feature_top_endpoints": feature_top_endpoints,
     }
 
 
